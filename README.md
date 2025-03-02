@@ -45,6 +45,6 @@ Convidamos todos a contribuir com melhorias, sugestões ou novos exemplos de doc
 
 ## Contato
 
-Para dúvidas ou sugestões, entre em contato através do e-mail [seu-email@exemplo.com].
+Para dúvidas ou sugestões, entre em contato através do e-mail [alttabcorp@gmail.com].
 
 Agradeço pela sua visita e espero que este repositório seja útil para a documentação dos seus projetos!
