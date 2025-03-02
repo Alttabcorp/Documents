@@ -1,0 +1,18 @@
+# Usando uma imagem oficial do LaTeX
+FROM texlive/texlive:latest
+
+# Instalar pacotes adicionais se necessário
+RUN apt-get update && apt-get install -y \
+    # texlive-latex-extra \
+    # texlive-fonts-recommended \
+    # texlive-fonts-extra \
+    texlive-lang-portuguese \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY . .
+
+# Definir o diretório de trabalho
+WORKDIR /workspace
+
+# Comando padrão para compilar arquivos .tex
+CMD ["pdflatex", "main.tex"]
