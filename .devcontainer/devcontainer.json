@@ -18,7 +18,8 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
-				"James-Yu.latex-workshop"
+				"James-Yu.latex-workshop",
+				"tomoki1207.pdf"
 			]
 		}
 	}
