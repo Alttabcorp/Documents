@@ -99,7 +99,7 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 
 - Email: alttabcorp@gmail.com
 - GitHub: [@AlttabCorp](https://github.com/Alttabcorp)
-- Website: [alttabcorp.com.br](https://alttabcorp.com.br)
+- Website: [alttabcorp.com.br](https://alttabcorp.github.io/Alttab_web/)
 
 ---
 
