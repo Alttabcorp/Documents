@@ -1,4 +1,4 @@
-# 📚 AlttabCorp - Repositório de Documentação
+# 📚 AlttabCorp - Template de Documentação
 
 <div align="center">
 
@@ -6,12 +6,18 @@
 
 [![License](https://img.shields.io/github/license/Alttabcorp/Documents)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue)](Dockerfile)
+[![Template](https://img.shields.io/badge/Template-Ready-green)](templates/)
 
 </div>
 
 ## 🎯 Sobre este Repositório
 
-Este é o repositório oficial de documentação da AlttabCorp, servindo como template e fonte centralizada para todos os documentos relacionados aos projetos da empresa. Utilizamos Docker com Texlive para garantir consistência e qualidade na geração de documentação.
+Este repositório serve como um template de documentação para projetos da AlttabCorp. Ele pode ser utilizado de duas maneiras:
+
+1. **Como Submódulo**: Incorporado em outros projetos para manter a documentação
+2. **Como Repositório Central**: Para gerenciar a documentação de todos os projetos da empresa
+
+Utilizamos Docker com Texlive para garantir consistência e qualidade na geração de documentação.
 
 ## 🌟 Características
 
@@ -20,6 +26,7 @@ Este é o repositório oficial de documentação da AlttabCorp, servindo como te
 - **Ambiente Dockerizado**: Garantia de consistência na geração de documentos
 - **Integração Contínua**: Pipelines automatizadas para validação de documentação
 - **Versionamento**: Controle de versão eficiente por projeto
+- **Flexibilidade**: Pode ser usado como submódulo ou repositório central
 
 ## 🗂️ Estrutura do Repositório
 
@@ -36,13 +43,34 @@ Documents/
 
 ## 🚀 Como Usar
 
-### Pré-requisitos
+### Opção 1: Como Submódulo
 
-- Git
-- Docker
-- VSCode (recomendado)
+1. **Adicione como Submódulo**:
+   ```bash
+   git submodule add https://github.com/Alttabcorp/Documents.git docs
+   ```
 
-### Configuração Inicial
+2. **Inicialize e Atualize**:
+   ```bash
+   git submodule update --init --recursive
+   ```
+
+3. **Crie os Links Simbólicos Necessários**:
+   ```bash
+   # Crie links simbólicos para os arquivos de configuração necessários
+   ln -s docs/.devcontainer .devcontainer
+   ln -s docs/Dockerfile Dockerfile
+   ```
+
+4. **Configure o Ambiente**:
+   - Abra o projeto no VSCode
+   - Instale a extensão "Remote - Containers" se ainda não tiver
+   - Quando solicitado, clique em "Reopen in Container" ou use o comando "Remote-Containers: Reopen in Container"
+   - O VSCode irá automaticamente configurar o ambiente usando o devcontainer
+
+   > **Nota**: Os links simbólicos são necessários para que o ambiente de desenvolvimento e o Docker funcionem corretamente no projeto principal.
+
+### Opção 2: Como Repositório Central
 
 1. **Clone o Repositório**:
    ```bash
@@ -51,14 +79,10 @@ Documents/
    ```
 
 2. **Configure o Ambiente**:
-   ```bash
-   docker build -t alttabcorp-docs .
-   ```
-
-3. **Crie um Novo Projeto**:
-   ```bash
-   git checkout -b projeto/nome-do-projeto
-   ```
+   - Abra o projeto no VSCode
+   - Instale a extensão "Remote - Containers" se ainda não tiver
+   - Quando solicitado, clique em "Reopen in Container" ou use o comando "Remote-Containers: Reopen in Container"
+   - O VSCode irá automaticamente configurar o ambiente usando o devcontainer
 
 ### Uso do Template
 
@@ -82,6 +106,7 @@ Documents/
 - Use nomes descritivos para arquivos e pastas
 - Inclua exemplos quando possível
 - Mantenha a estrutura do template
+- Ao usar como submódulo, mantenha-o atualizado regularmente
 
 ## 🛠️ Ferramentas Recomendadas
 
