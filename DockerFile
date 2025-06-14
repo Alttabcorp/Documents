@@ -14,5 +14,12 @@ COPY . .
 # Definir o diretório de trabalho
 WORKDIR /workspace
 
+# Criar usuário não-root
+RUN useradd -ms /bin/bash vscode
+
+# Definir usuário padrão
+USER vscode
+
 # Comando padrão para compilar arquivos .tex
 CMD ["pdflatex", "main.tex"]
+
