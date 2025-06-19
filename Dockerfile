@@ -22,4 +22,5 @@ RUN chown -R texlive:texlive /home/document_project
 USER texlive
 
 CMD ["bash"]
+#pdflatex main.tex
 
