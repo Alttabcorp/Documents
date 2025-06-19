@@ -20,21 +20,19 @@ if [ -n "$LOCAL_USER_ID" ]; then\n\
     GROUP_ID=${LOCAL_GROUP_ID:-1000}\n\
     USER_NAME=${LOCAL_USER_NAME:-latex}\n\
     \n\
-    # Criar usuário e grupo se não existirem\n\
+    # Criar usuário com o mesmo UID do host\n\
     groupadd --gid $GROUP_ID $USER_NAME 2>/dev/null || true\n\
     useradd --uid $USER_ID --gid $GROUP_ID -m -s /bin/bash $USER_NAME 2>/dev/null || true\n\
     \n\
     # Configurar sudo\n\
     echo "$USER_NAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USER_NAME\n\
     \n\
-    # Ajustar permissões ANTES de executar o comando\n\
-    chown -R $USER_NAME:$USER_NAME /home/document_project\n\
+    # Ajustar permissões do diretório do projeto\n\
+    chown -R $USER_ID:$GROUP_ID /home/document_project\n\
     \n\
     # Executar comando como o usuário criado\n\
     exec gosu $USER_NAME "$@"\n\
 else\n\
-    # Fallback para usuário padrão\n\
-    chown -R $(id -u):$(id -g) /home/document_project\n\
     exec "$@"\n\
 fi' > /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 
