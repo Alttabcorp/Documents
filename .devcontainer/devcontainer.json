@@ -30,16 +30,11 @@
 	// "forwardPorts": [],
 
 	// Uncomment the next line to run commands after the container is created.
-	// "postCreateCommand": "cat /etc/os-release",
+	"postCreateCommand": "sudo chown -R texlive:texlive /home/document_project/app",
 
 	// Configure tool-specific properties.
 	// "customizations": {},
 
 	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
-	"remoteUser": "latex",
-	"runArgs": [
-		"--env", "LOCAL_USER_ID=$(id -u)",
-		"--env", "LOCAL_GROUP_ID=$(id -g)",
-		"--env", "LOCAL_USER_NAME=$(whoami)"
-	]
+	"remoteUser": "texlive"
 }
