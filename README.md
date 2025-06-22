@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![AlttabCorp Logo](https://via.placeholder.com/150?text=AlttabCorp)
+![AlttabCorp Logo](https://avatars.githubusercontent.com/u/89790306?s=96&v=4)
 
 [![License](https://img.shields.io/github/license/Alttabcorp/Documents)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue)](Dockerfile)
