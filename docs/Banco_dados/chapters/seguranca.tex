@@ -1,0 +1,268 @@
+\section{Seguranca}
+
+\subsection{Controle de Acesso}
+
+\subsubsection{Roles e Permissoes}
+
+\begin{lstlisting}[caption=Criacao de roles de seguranca]
+-- Role para aplicacao (conexao principal)
+CREATE ROLE finops_app WITH LOGIN PASSWORD 'senha_forte_aqui';
+
+-- Role para backups
+CREATE ROLE finops_backup WITH LOGIN PASSWORD 'senha_backup_aqui';
+
+-- Role para leitura (relatorios)
+CREATE ROLE finops_readonly WITH LOGIN PASSWORD 'senha_readonly_aqui';
+
+-- Role para administracao
+CREATE ROLE finops_admin WITH LOGIN SUPERUSER PASSWORD 'senha_admin_aqui';
+
+-- Conceder permissoes basicas para aplicacao
+GRANT CONNECT ON DATABASE finops TO finops_app;
+GRANT USAGE ON SCHEMA public TO finops_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO finops_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO finops_app;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO finops_app;
+
+-- Permissoes para auditoria
+GRANT USAGE ON SCHEMA audit TO finops_app;
+GRANT INSERT ON audit.audit_logs TO finops_app;
+
+-- Permissoes para readonly
+GRANT CONNECT ON DATABASE finops TO finops_readonly;
+GRANT USAGE ON SCHEMA public TO finops_readonly;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO finops_readonly;
+
+-- Permissoes para backup
+GRANT CONNECT ON DATABASE finops TO finops_backup;
+GRANT USAGE ON SCHEMA public, audit TO finops_backup;
+GRANT SELECT ON ALL TABLES IN SCHEMA public, audit TO finops_backup;
+\end{lstlisting}
+
+\subsubsection{Row Level Security (RLS)}
+
+\begin{lstlisting}[caption=Politicas de seguranca por linha]
+-- Habilitar RLS nas tabelas principais
+ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transacoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE categorias ENABLE ROW LEVEL SECURITY;
+
+-- Politica para usuarios (apenas dados proprios)
+CREATE POLICY usuarios_self_access ON usuarios
+    FOR ALL TO finops_app
+    USING (id = current_setting('app.current_user_id')::uuid);
+
+-- Politica para contas (proprias ou de grupo)
+CREATE POLICY contas_access ON contas
+    FOR ALL TO finops_app
+    USING (
+        usuario_id = current_setting('app.current_user_id')::uuid OR
+        (compartilhada = true AND grupo_id IN (
+            SELECT grupo_id FROM usuario_grupos 
+            WHERE usuario_id = current_setting('app.current_user_id')::uuid 
+              AND ativo = true
+        ))
+    );
+
+-- Politica para transacoes
+CREATE POLICY transacoes_access ON transacoes
+    FOR ALL TO finops_app
+    USING (
+        usuario_id = current_setting('app.current_user_id')::uuid OR
+        grupo_id IN (
+            SELECT grupo_id FROM usuario_grupos 
+            WHERE usuario_id = current_setting('app.current_user_id')::uuid 
+              AND ativo = true
+        )
+    );
+
+-- Politica para categorias
+CREATE POLICY categorias_access ON categorias
+    FOR ALL TO finops_app
+    USING (
+        sistema = true OR
+        usuario_id = current_setting('app.current_user_id')::uuid OR
+        grupo_id IN (
+            SELECT grupo_id FROM usuario_grupos 
+            WHERE usuario_id = current_setting('app.current_user_id')::uuid 
+              AND ativo = true
+        )
+    );
+\end{lstlisting}
+
+\subsection{Criptografia}
+
+\subsubsection{Criptografia de Dados Sensiveis}
+
+\begin{lstlisting}[caption=Funcoes para criptografia]
+-- Extensao para criptografia
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Funcao para hash de senhas
+CREATE OR REPLACE FUNCTION hash_senha(senha TEXT)
+RETURNS TEXT AS $$
+BEGIN
+    RETURN crypt(senha, gen_salt('bf', 12));
+END;
+$$ LANGUAGE plpgsql;
+
+-- Funcao para verificar senha
+CREATE OR REPLACE FUNCTION verificar_senha(senha TEXT, hash TEXT)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN hash = crypt(senha, hash);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Funcao para criptografar dados sensiveis
+CREATE OR REPLACE FUNCTION criptografar_dado(dado TEXT, chave TEXT)
+RETURNS TEXT AS $$
+BEGIN
+    RETURN encode(pgp_sym_encrypt(dado, chave), 'base64');
+END;
+$$ LANGUAGE plpgsql;
+
+-- Funcao para descriptografar dados
+CREATE OR REPLACE FUNCTION descriptografar_dado(dado_criptografado TEXT, chave TEXT)
+RETURNS TEXT AS $$
+BEGIN
+    RETURN pgp_sym_decrypt(decode(dado_criptografado, 'base64'), chave);
+EXCEPTION WHEN OTHERS THEN
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+\end{lstlisting}
+
+\subsection{Auditoria e Logging}
+
+\subsubsection{Log de Acessos}
+
+\begin{lstlisting}[caption=Trigger para log de acessos]
+CREATE TABLE audit.login_logs (
+    id BIGSERIAL PRIMARY KEY,
+    usuario_id UUID REFERENCES usuarios(id),
+    ip_origem INET NOT NULL,
+    user_agent TEXT,
+    sucesso BOOLEAN NOT NULL,
+    motivo_falha TEXT,
+    timestamp_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Funcao para log de login
+CREATE OR REPLACE FUNCTION registrar_login(
+    p_usuario_id UUID,
+    p_ip INET,
+    p_user_agent TEXT,
+    p_sucesso BOOLEAN,
+    p_motivo_falha TEXT DEFAULT NULL
+)
+RETURNS void AS $$
+BEGIN
+    INSERT INTO audit.login_logs (usuario_id, ip_origem, user_agent, sucesso, motivo_falha)
+    VALUES (p_usuario_id, p_ip, p_user_agent, p_sucesso, p_motivo_falha);
+END;
+$$ LANGUAGE plpgsql;
+\end{lstlisting}
+
+\subsubsection{Deteccao de Anomalias}
+
+\begin{lstlisting}[caption=Funcao para detectar atividades suspeitas]
+CREATE OR REPLACE FUNCTION detectar_atividade_suspeita(p_usuario_id UUID)
+RETURNS TABLE (
+    tipo_alerta TEXT,
+    descricao TEXT,
+    severidade INTEGER
+) AS $$
+BEGIN
+    -- Multiplos logins de IPs diferentes
+    IF EXISTS (
+        SELECT 1 FROM audit.login_logs 
+        WHERE usuario_id = p_usuario_id 
+          AND timestamp_login > CURRENT_TIMESTAMP - INTERVAL '1 hour'
+          AND sucesso = true
+        GROUP BY ip_origem 
+        HAVING COUNT(*) > 5
+    ) THEN
+        RETURN QUERY SELECT 'MULTIPLOS_IPS'::TEXT, 'Multiplos logins de IPs diferentes'::TEXT, 3;
+    END IF;
+    
+    -- Transacoes em valores muito altos
+    IF EXISTS (
+        SELECT 1 FROM transacoes t
+        WHERE t.usuario_id = p_usuario_id
+          AND t.data_transacao > CURRENT_DATE - INTERVAL '1 day'
+          AND t.valor > (
+              SELECT COALESCE(AVG(valor) * 10, 1000) 
+              FROM transacoes t2 
+              WHERE t2.usuario_id = p_usuario_id 
+                AND t2.data_transacao > CURRENT_DATE - INTERVAL '30 days'
+          )
+    ) THEN
+        RETURN QUERY SELECT 'VALOR_ALTO'::TEXT, 'Transacao com valor muito acima da media'::TEXT, 2;
+    END IF;
+    
+    -- Muitas transacoes em pouco tempo
+    IF (
+        SELECT COUNT(*) FROM transacoes 
+        WHERE usuario_id = p_usuario_id 
+          AND created_at > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
+    ) > 20 THEN
+        RETURN QUERY SELECT 'MUITAS_TRANSACOES'::TEXT, 'Muitas transacoes em pouco tempo'::TEXT, 2;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+\end{lstlisting}
+
+\subsection{Configuracoes de Seguranca}
+
+\subsubsection{Parametros do PostgreSQL}
+
+\begin{lstlisting}[caption=Configuracoes recomendadas de seguranca]
+-- No postgresql.conf
+-- ssl = on
+-- ssl_cert_file = 'server.crt'
+-- ssl_key_file = 'server.key'
+-- ssl_ciphers = 'HIGH:MEDIUM:+3DES:!aNULL'
+-- password_encryption = scram-sha-256
+-- log_connections = on
+-- log_disconnections = on
+-- log_statement = 'mod'
+-- log_line_prefix = '%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+
+-- No pg_hba.conf
+-- local   finops   finops_app               scram-sha-256
+-- host    finops   finops_app  127.0.0.1/32 scram-sha-256
+-- hostssl finops   finops_app  0.0.0.0/0    scram-sha-256
+\end{lstlisting}
+
+\subsection{Backup Seguro}
+
+\begin{lstlisting}[caption=Script de backup com criptografia]
+#!/bin/bash
+# backup_seguro.sh
+
+# Configuracoes
+DB_NAME="finops"
+BACKUP_DIR="/var/backups/finops"
+DATE=$(date +%Y%m%d_%H%M%S)
+BACKUP_FILE="$BACKUP_DIR/finops_backup_$DATE.sql.gz.gpg"
+
+# Criar diretorio se nao existir
+mkdir -p $BACKUP_DIR
+
+# Realizar backup com compressao e criptografia
+pg_dump $DB_NAME | gzip | gpg --cipher-algo AES256 --compress-algo 1 \
+    --symmetric --output $BACKUP_FILE
+
+# Verificar se backup foi criado
+if [ -f "$BACKUP_FILE" ]; then
+    echo "Backup criado com sucesso: $BACKUP_FILE"
+    
+    # Remover backups antigos (manter apenas 30 dias)
+    find $BACKUP_DIR -name "finops_backup_*.sql.gz.gpg" -mtime +30 -delete
+else
+    echo "ERRO: Falha ao criar backup"
+    exit 1
+fi
+\end{lstlisting}

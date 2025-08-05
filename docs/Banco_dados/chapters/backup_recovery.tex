@@ -1,0 +1,291 @@
+\section{Backup e Recovery}
+
+\subsection{Estrategia de Backup}
+
+\subsubsection{Tipos de Backup}
+
+\paragraph{Backup Completo Diario}
+\begin{lstlisting}[caption=Script de backup completo]
+#!/bin/bash
+# backup_completo.sh
+
+DB_NAME="finops"
+BACKUP_DIR="/var/backups/finops/completo"
+DATE=$(date +%Y%m%d_%H%M%S)
+LOGFILE="/var/log/finops_backup.log"
+
+echo "$(date): Iniciando backup completo" >> $LOGFILE
+
+# Backup com compressao
+pg_dump -h localhost -U finops_backup -d $DB_NAME \
+    --format=custom --compress=9 \
+    --file="$BACKUP_DIR/finops_full_$DATE.backup"
+
+if [ $? -eq 0 ]; then
+    echo "$(date): Backup completo concluido com sucesso" >> $LOGFILE
+    
+    # Testar integridade do backup
+    pg_restore --list "$BACKUP_DIR/finops_full_$DATE.backup" > /dev/null
+    
+    if [ $? -eq 0 ]; then
+        echo "$(date): Backup validado com sucesso" >> $LOGFILE
+    else
+        echo "$(date): ERRO: Backup corrompido" >> $LOGFILE
+        exit 1
+    fi
+else
+    echo "$(date): ERRO: Falha no backup completo" >> $LOGFILE
+    exit 1
+fi
+
+# Limpeza de backups antigos (manter 7 dias)
+find $BACKUP_DIR -name "finops_full_*.backup" -mtime +7 -delete
+\end{lstlisting}
+
+\paragraph{Backup Incremental}
+\begin{lstlisting}[caption=Configuracao de WAL archiving]
+-- No postgresql.conf
+-- wal_level = replica
+-- archive_mode = on
+-- archive_command = 'cp %p /var/backups/finops/wal/%f'
+-- max_wal_senders = 3
+-- checkpoint_timeout = 5min
+-- max_wal_size = 1GB
+-- min_wal_size = 80MB
+
+-- Script para backup incremental
+#!/bin/bash
+# backup_incremental.sh
+
+PGDATA="/var/lib/postgresql/data"
+BACKUP_DIR="/var/backups/finops/incremental"
+DATE=$(date +%Y%m%d_%H%M%S)
+
+# Iniciar backup base
+pg_basebackup -h localhost -U finops_backup \
+    -D "$BACKUP_DIR/base_$DATE" \
+    --format=tar --gzip --progress \
+    --checkpoint=fast
+\end{lstlisting}
+
+\subsection{Procedures de Recovery}
+
+\subsubsection{Recovery Completo}
+
+\begin{lstlisting}[caption=Script de restore completo]
+#!/bin/bash
+# restore_completo.sh
+
+if [ -z "$1" ]; then
+    echo "Uso: $0 <arquivo_backup>"
+    exit 1
+fi
+
+BACKUP_FILE="$1"
+DB_NAME="finops"
+TEMP_DB="finops_restore_$(date +%s)"
+
+echo "Iniciando restore do backup: $BACKUP_FILE"
+
+# Criar banco temporario
+createdb -U postgres "$TEMP_DB"
+
+# Restaurar dados
+pg_restore -h localhost -U postgres -d "$TEMP_DB" \
+    --verbose --clean --if-exists "$BACKUP_FILE"
+
+if [ $? -eq 0 ]; then
+    echo "Restore concluido no banco temporario: $TEMP_DB"
+    echo "Para aplicar:"
+    echo "1. Pare a aplicacao"
+    echo "2. Renomeie o banco atual: ALTER DATABASE $DB_NAME RENAME TO ${DB_NAME}_old;"
+    echo "3. Renomeie o banco restaurado: ALTER DATABASE $TEMP_DB RENAME TO $DB_NAME;"
+    echo "4. Reinicie a aplicacao"
+else
+    echo "ERRO no restore"
+    dropdb -U postgres "$TEMP_DB"
+    exit 1
+fi
+\end{lstlisting}
+
+\subsubsection{Point-in-Time Recovery}
+
+\begin{lstlisting}[caption=Recovery para um momento especifico]
+#!/bin/bash
+# pitr_recovery.sh
+
+if [ -z "$1" ] || [ -z "$2" ]; then
+    echo "Uso: $0 <backup_base> <timestamp>"
+    echo "Exemplo: $0 /path/backup.tar '2024-01-15 14:30:00'"
+    exit 1
+fi
+
+BACKUP_BASE="$1"
+TARGET_TIME="$2"
+RECOVERY_DIR="/var/lib/postgresql/recovery"
+WAL_DIR="/var/backups/finops/wal"
+
+# Parar PostgreSQL
+systemctl stop postgresql
+
+# Limpar diretorio de dados
+rm -rf /var/lib/postgresql/data/*
+
+# Extrair backup base
+tar -xzf "$BACKUP_BASE" -C /var/lib/postgresql/data/
+
+# Criar arquivo de recovery
+cat > /var/lib/postgresql/data/recovery.conf << EOF
+restore_command = 'cp $WAL_DIR/%f %p'
+recovery_target_time = '$TARGET_TIME'
+recovery_target_timeline = 'latest'
+EOF
+
+# Iniciar PostgreSQL em modo recovery
+systemctl start postgresql
+
+echo "Recovery iniciado para o momento: $TARGET_TIME"
+echo "Monitore os logs: tail -f /var/log/postgresql/postgresql.log"
+\end{lstlisting}
+
+\subsection{Monitoramento de Backup}
+
+\subsubsection{Verificacao Automatica}
+
+\begin{lstlisting}[caption=Script de verificacao de backups]
+#!/bin/bash
+# verificar_backups.sh
+
+BACKUP_DIR="/var/backups/finops"
+LOGFILE="/var/log/finops_backup_check.log"
+EMAIL_ADMIN="admin@finops.com"
+
+echo "$(date): Iniciando verificacao de backups" >> $LOGFILE
+
+# Verificar backup mais recente
+ULTIMO_BACKUP=$(find $BACKUP_DIR/completo -name "finops_full_*.backup" -mtime -1 | head -1)
+
+if [ -z "$ULTIMO_BACKUP" ]; then
+    echo "$(date): ERRO: Nenhum backup encontrado nas ultimas 24h" >> $LOGFILE
+    echo "ALERTA: Backup nao encontrado" | mail -s "FinOps Backup Alert" $EMAIL_ADMIN
+    exit 1
+fi
+
+# Testar integridade
+pg_restore --list "$ULTIMO_BACKUP" > /dev/null 2>&1
+
+if [ $? -eq 0 ]; then
+    echo "$(date): Backup integro: $ULTIMO_BACKUP" >> $LOGFILE
+else
+    echo "$(date): ERRO: Backup corrompido: $ULTIMO_BACKUP" >> $LOGFILE
+    echo "ALERTA: Backup corrompido" | mail -s "FinOps Backup Alert" $EMAIL_ADMIN
+    exit 1
+fi
+
+# Verificar espaco em disco
+ESPACO_LIVRE=$(df $BACKUP_DIR | awk 'NR==2 {print $4}')
+LIMITE_MINIMO=1048576  # 1GB em KB
+
+if [ $ESPACO_LIVRE -lt $LIMITE_MINIMO ]; then
+    echo "$(date): AVISO: Pouco espaco em disco: ${ESPACO_LIVRE}KB" >> $LOGFILE
+    echo "AVISO: Pouco espaco para backups" | mail -s "FinOps Storage Alert" $EMAIL_ADMIN
+fi
+
+echo "$(date): Verificacao concluida com sucesso" >> $LOGFILE
+\end{lstlisting}
+
+\subsection{Disaster Recovery}
+
+\subsubsection{Plano de Contingencia}
+
+\begin{lstlisting}[caption=Procedimento de disaster recovery]
+-- PLANO DE DISASTER RECOVERY FINOPS
+-- ====================================
+
+-- FASE 1: AVALIACAO DO DANO
+-- 1. Verificar se servidor PostgreSQL responde
+-- 2. Testar conectividade de rede
+-- 3. Verificar integridade dos discos
+-- 4. Avaliar logs de erro
+
+-- FASE 2: RECOVERY DE EMERGENCIA
+-- 1. Provisionar novo servidor se necessario
+-- 2. Instalar PostgreSQL na mesma versao
+-- 3. Configurar parametros basicos
+-- 4. Restaurar backup mais recente
+
+-- Script de recovery de emergencia
+#!/bin/bash
+# emergency_recovery.sh
+
+echo "=== FinOps Emergency Recovery ==="
+echo "Este script ira restaurar o banco de dados"
+echo "Confirme antes de prosseguir!"
+read -p "Continuar? (y/N): " confirm
+
+if [ "$confirm" != "y" ]; then
+    echo "Recovery cancelado"
+    exit 0
+fi
+
+# Encontrar backup mais recente
+ULTIMO_BACKUP=$(find /var/backups/finops/completo -name "finops_full_*.backup" | sort | tail -1)
+
+if [ -z "$ULTIMO_BACKUP" ]; then
+    echo "ERRO: Nenhum backup encontrado"
+    exit 1
+fi
+
+echo "Usando backup: $ULTIMO_BACKUP"
+
+# Recriar banco
+dropdb --if-exists finops
+createdb finops
+
+# Restaurar dados
+pg_restore -d finops "$ULTIMO_BACKUP"
+
+echo "Recovery concluido"
+echo "Verificar logs e testar aplicacao antes de colocar em producao"
+\end{lstlisting}
+
+\subsubsection{Replicacao para Alta Disponibilidade}
+
+\begin{lstlisting}[caption=Configuracao de replica]
+-- No servidor master (postgresql.conf)
+-- wal_level = replica
+-- max_wal_senders = 3
+-- wal_keep_segments = 64
+-- synchronous_standby_names = 'standby1'
+
+-- No pg_hba.conf do master
+-- host replication finops_repl standby_ip/32 md5
+
+-- Script para configurar standby
+#!/bin/bash
+# setup_standby.sh
+
+MASTER_HOST="master_ip"
+STANDBY_DATA="/var/lib/postgresql/standby"
+
+# Parar PostgreSQL no standby
+systemctl stop postgresql
+
+# Backup inicial do master
+pg_basebackup -h $MASTER_HOST -U finops_repl \
+    -D $STANDBY_DATA --write-recovery-conf \
+    --checkpoint=fast
+
+# Configurar recovery.conf
+cat >> $STANDBY_DATA/recovery.conf << EOF
+standby_mode = 'on'
+primary_conninfo = 'host=$MASTER_HOST port=5432 user=finops_repl'
+trigger_file = '/var/lib/postgresql/failover'
+EOF
+
+# Iniciar standby
+systemctl start postgresql
+
+echo "Standby configurado. Para failover, crie o arquivo:"
+echo "touch /var/lib/postgresql/failover"
+\end{lstlisting}

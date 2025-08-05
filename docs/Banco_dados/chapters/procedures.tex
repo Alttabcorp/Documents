@@ -1,0 +1,276 @@
+\section{Procedures e Funcoes}
+
+\subsection{Funcoes de Negocio}
+
+\subsubsection{Calculo Splitwise}
+
+\begin{lstlisting}[caption=Funcao para calcular divisao Splitwise]
+CREATE OR REPLACE FUNCTION calcular_splitwise_grupo(
+    p_grupo_id UUID,
+    p_data_inicio DATE DEFAULT DATE_TRUNC('month', CURRENT_DATE)::DATE,
+    p_data_fim DATE DEFAULT (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month - 1 day')::DATE
+)
+RETURNS TABLE (
+    usuario_id UUID,
+    nome_usuario VARCHAR(100),
+    total_pago DECIMAL(15,2),
+    valor_devido DECIMAL(15,2),
+    saldo DECIMAL(15,2)
+) AS $$
+DECLARE
+    total_gastos DECIMAL(15,2);
+    num_usuarios INTEGER;
+    valor_por_pessoa DECIMAL(15,2);
+BEGIN
+    -- Verificar se o grupo usa modelo Splitwise
+    IF NOT EXISTS (
+        SELECT 1 FROM grupos 
+        WHERE id = p_grupo_id AND modelo_organizacao = 'splitwise'
+    ) THEN
+        RAISE EXCEPTION 'Grupo nao configurado para modelo Splitwise';
+    END IF;
+    
+    -- Contar usuarios ativos no grupo
+    SELECT COUNT(*) INTO num_usuarios
+    FROM usuario_grupos ug
+    WHERE ug.grupo_id = p_grupo_id AND ug.ativo = true;
+    
+    -- Calcular total de gastos do periodo
+    SELECT COALESCE(SUM(t.valor), 0) INTO total_gastos
+    FROM transacoes t
+    WHERE t.grupo_id = p_grupo_id
+      AND t.tipo = 'despesa'
+      AND t.status = 'confirmada'
+      AND t.data_transacao BETWEEN p_data_inicio AND p_data_fim;
+    
+    -- Calcular valor devido por pessoa
+    valor_por_pessoa := total_gastos / num_usuarios;
+    
+    -- Retornar resultado
+    RETURN QUERY
+    SELECT 
+        u.id,
+        u.nome,
+        COALESCE(SUM(t.valor), 0) AS total_pago,
+        valor_por_pessoa AS valor_devido,
+        (valor_por_pessoa - COALESCE(SUM(t.valor), 0)) AS saldo
+    FROM usuarios u
+    JOIN usuario_grupos ug ON u.id = ug.usuario_id
+    LEFT JOIN transacoes t ON u.id = t.usuario_id 
+        AND t.grupo_id = p_grupo_id
+        AND t.tipo = 'despesa'
+        AND t.status = 'confirmada'
+        AND t.data_transacao BETWEEN p_data_inicio AND p_data_fim
+    WHERE ug.grupo_id = p_grupo_id AND ug.ativo = true
+    GROUP BY u.id, u.nome, valor_por_pessoa
+    ORDER BY u.nome;
+END;
+$$ LANGUAGE plpgsql;
+\end{lstlisting}
+
+\subsubsection{Atualizacao de Saldos}
+
+\begin{lstlisting}[caption=Procedure para atualizar saldos de todas as contas]
+CREATE OR REPLACE PROCEDURE atualizar_saldos_usuario(p_usuario_id UUID)
+LANGUAGE plpgsql AS $$
+DECLARE
+    conta_record RECORD;
+    novo_saldo DECIMAL(15,2);
+BEGIN
+    -- Percorrer todas as contas do usuario
+    FOR conta_record IN 
+        SELECT id, saldo_inicial, tipo
+        FROM contas 
+        WHERE usuario_id = p_usuario_id AND ativa = true
+    LOOP
+        -- Calcular novo saldo
+        SELECT conta_record.saldo_inicial + COALESCE(SUM(
+            CASE 
+                WHEN t.tipo = 'receita' THEN t.valor
+                WHEN t.tipo = 'despesa' THEN -t.valor
+                WHEN t.tipo = 'transferencia' AND t.conta_id = conta_record.id THEN -t.valor
+                WHEN t.tipo = 'transferencia' AND t.conta_destino_id = conta_record.id THEN t.valor
+                ELSE 0
+            END
+        ), 0) INTO novo_saldo
+        FROM transacoes t
+        WHERE (t.conta_id = conta_record.id OR t.conta_destino_id = conta_record.id)
+          AND t.status = 'confirmada';
+        
+        -- Atualizar saldo
+        UPDATE contas 
+        SET saldo_atual = novo_saldo,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = conta_record.id;
+        
+        -- Log da atualizacao
+        INSERT INTO audit.audit_logs (tabela, operacao, usuario_id, dados_novos)
+        VALUES ('contas', 'UPDATE', p_usuario_id, 
+                jsonb_build_object('conta_id', conta_record.id, 'novo_saldo', novo_saldo));
+    END LOOP;
+    
+    COMMIT;
+END;
+$$;
+\end{lstlisting}
+
+\subsubsection{Processamento de Recorrencias}
+
+\begin{lstlisting}[caption=Funcao para processar transacoes recorrentes]
+CREATE OR REPLACE FUNCTION processar_recorrencias()
+RETURNS INTEGER AS $$
+DECLARE
+    rec_record RECORD;
+    nova_transacao_id UUID;
+    contador INTEGER := 0;
+    proxima_data DATE;
+BEGIN
+    -- Processar recorrencias vencidas
+    FOR rec_record IN 
+        SELECT * FROM recorrencias 
+        WHERE ativa = true 
+          AND proxima_execucao <= CURRENT_DATE
+          AND (data_fim IS NULL OR proxima_execucao <= data_fim)
+    LOOP
+        -- Criar nova transacao
+        INSERT INTO transacoes (
+            descricao, valor, tipo, data_transacao,
+            conta_id, categoria_id, usuario_id, grupo_id,
+            status, observacoes
+        ) VALUES (
+            rec_record.nome,
+            rec_record.valor,
+            rec_record.tipo,
+            rec_record.proxima_execucao,
+            rec_record.conta_id,
+            rec_record.categoria_id,
+            rec_record.usuario_id,
+            rec_record.grupo_id,
+            CASE WHEN rec_record.auto_confirmar THEN 'confirmada' ELSE 'pendente' END,
+            'Transacao recorrente gerada automaticamente'
+        ) RETURNING id INTO nova_transacao_id;
+        
+        -- Calcular proxima execucao
+        SELECT CASE rec_record.frequencia
+            WHEN 'diario' THEN rec_record.proxima_execucao + INTERVAL '1 day'
+            WHEN 'semanal' THEN rec_record.proxima_execucao + INTERVAL '1 week'
+            WHEN 'quinzenal' THEN rec_record.proxima_execucao + INTERVAL '15 days'
+            WHEN 'mensal' THEN rec_record.proxima_execucao + INTERVAL '1 month'
+            WHEN 'bimestral' THEN rec_record.proxima_execucao + INTERVAL '2 months'
+            WHEN 'trimestral' THEN rec_record.proxima_execucao + INTERVAL '3 months'
+            WHEN 'semestral' THEN rec_record.proxima_execucao + INTERVAL '6 months'
+            WHEN 'anual' THEN rec_record.proxima_execucao + INTERVAL '1 year'
+            ELSE rec_record.proxima_execucao + INTERVAL '1 month'
+        END INTO proxima_data;
+        
+        -- Atualizar recorrencia
+        UPDATE recorrencias 
+        SET proxima_execucao = proxima_data,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = rec_record.id;
+        
+        contador := contador + 1;
+        
+        -- Log da operacao
+        INSERT INTO audit.audit_logs (tabela, operacao, usuario_id, dados_novos)
+        VALUES ('recorrencias', 'PROCESS', rec_record.usuario_id,
+                jsonb_build_object('recorrencia_id', rec_record.id, 
+                                 'transacao_id', nova_transacao_id,
+                                 'proxima_data', proxima_data));
+    END LOOP;
+    
+    RETURN contador;
+END;
+$$ LANGUAGE plpgsql;
+\end{lstlisting}
+
+\subsection{Funcoes de Relatorio}
+
+\subsubsection{Resumo Financeiro}
+
+\begin{lstlisting}[caption=Funcao para gerar resumo financeiro]
+CREATE OR REPLACE FUNCTION gerar_resumo_financeiro(
+    p_usuario_id UUID,
+    p_data_inicio DATE,
+    p_data_fim DATE
+)
+RETURNS TABLE (
+    periodo TEXT,
+    total_receitas DECIMAL(15,2),
+    total_despesas DECIMAL(15,2),
+    saldo_periodo DECIMAL(15,2),
+    categoria_maior_gasto VARCHAR(100),
+    valor_maior_gasto DECIMAL(15,2)
+) AS $$
+BEGIN
+    RETURN QUERY
+    WITH resumo_base AS (
+        SELECT 
+            TO_CHAR(t.data_transacao, 'YYYY-MM') as mes,
+            SUM(CASE WHEN t.tipo = 'receita' THEN t.valor ELSE 0 END) as receitas,
+            SUM(CASE WHEN t.tipo = 'despesa' THEN t.valor ELSE 0 END) as despesas
+        FROM transacoes t
+        WHERE t.usuario_id = p_usuario_id
+          AND t.status = 'confirmada'
+          AND t.data_transacao BETWEEN p_data_inicio AND p_data_fim
+        GROUP BY TO_CHAR(t.data_transacao, 'YYYY-MM')
+    ),
+    maior_categoria AS (
+        SELECT DISTINCT ON (TO_CHAR(t.data_transacao, 'YYYY-MM'))
+            TO_CHAR(t.data_transacao, 'YYYY-MM') as mes,
+            c.nome as categoria,
+            SUM(t.valor) as total_categoria
+        FROM transacoes t
+        JOIN categorias c ON t.categoria_id = c.id
+        WHERE t.usuario_id = p_usuario_id
+          AND t.tipo = 'despesa'
+          AND t.status = 'confirmada'
+          AND t.data_transacao BETWEEN p_data_inicio AND p_data_fim
+        GROUP BY TO_CHAR(t.data_transacao, 'YYYY-MM'), c.nome
+        ORDER BY TO_CHAR(t.data_transacao, 'YYYY-MM'), SUM(t.valor) DESC
+    )
+    SELECT 
+        rb.mes,
+        rb.receitas,
+        rb.despesas,
+        (rb.receitas - rb.despesas),
+        mc.categoria,
+        mc.total_categoria
+    FROM resumo_base rb
+    LEFT JOIN maior_categoria mc ON rb.mes = mc.mes
+    ORDER BY rb.mes;
+END;
+$$ LANGUAGE plpgsql;
+\end{lstlisting}
+
+\subsection{Funcoes de Validacao}
+
+\subsubsection{Validacao de Limite de Credito}
+
+\begin{lstlisting}[caption=Funcao para validar limite de credito]
+CREATE OR REPLACE FUNCTION validar_limite_credito()
+RETURNS TRIGGER AS $$
+DECLARE
+    saldo_atual DECIMAL(15,2);
+    limite DECIMAL(15,2);
+    tipo_conta VARCHAR(30);
+BEGIN
+    -- Buscar informacoes da conta
+    SELECT c.saldo_atual, c.limite_credito, c.tipo
+    INTO saldo_atual, limite, tipo_conta
+    FROM contas c
+    WHERE c.id = NEW.conta_id;
+    
+    -- Verificar apenas para cartao de credito
+    IF tipo_conta = 'cartao_credito' AND NEW.tipo = 'despesa' THEN
+        -- Calcular novo saldo apos a transacao
+        IF (saldo_atual - NEW.valor) < -COALESCE(limite, 0) THEN
+            RAISE EXCEPTION 'Transacao excede limite de credito. Limite: %, Saldo atual: %, Valor transacao: %',
+                COALESCE(limite, 0), saldo_atual, NEW.valor;
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+\end{lstlisting}

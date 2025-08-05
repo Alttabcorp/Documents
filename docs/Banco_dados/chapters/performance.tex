@@ -1,0 +1,293 @@
+\section{Performance e Otimizacao}
+
+\subsection{Monitoramento de Performance}
+
+\subsubsection{Metricas Essenciais}
+
+\begin{lstlisting}[caption=Queries para monitoramento]
+-- CPU e memoria por query
+SELECT 
+    query,
+    calls,
+    total_time,
+    mean_time,
+    stddev_time,
+    rows,
+    100.0 * shared_blks_hit / nullif(shared_blks_hit + shared_blks_read, 0) AS hit_percent
+FROM pg_stat_statements 
+ORDER BY mean_time DESC 
+LIMIT 10;
+
+-- Bloqueios ativos
+SELECT 
+    pg_stat_activity.pid,
+    pg_stat_activity.usename,
+    pg_stat_activity.query,
+    pg_stat_activity.state,
+    pg_locks.mode,
+    pg_locks.locktype,
+    pg_locks.relation::regclass
+FROM pg_stat_activity
+JOIN pg_locks ON pg_stat_activity.pid = pg_locks.pid
+WHERE pg_stat_activity.state = 'active';
+
+-- Conexoes ativas por usuario
+SELECT 
+    usename,
+    count(*) as active_connections,
+    max(state) as max_state
+FROM pg_stat_activity 
+WHERE state != 'idle'
+GROUP BY usename
+ORDER BY active_connections DESC;
+\end{lstlisting}
+
+\subsubsection{Dashboard de Monitoramento}
+
+\begin{lstlisting}[caption=View consolidada para dashboard]
+CREATE VIEW dashboard_performance AS
+WITH estatisticas_gerais AS (
+    SELECT 
+        (SELECT count(*) FROM usuarios WHERE ativo = true) as usuarios_ativos,
+        (SELECT count(*) FROM transacoes WHERE data_transacao = CURRENT_DATE) as transacoes_hoje,
+        (SELECT count(*) FROM contas WHERE ativa = true) as contas_ativas,
+        (SELECT pg_size_pretty(pg_database_size('finops'))) as tamanho_bd
+),
+performance_queries AS (
+    SELECT 
+        count(*) as queries_executadas,
+        avg(mean_time) as tempo_medio,
+        max(mean_time) as tempo_maximo
+    FROM pg_stat_statements
+    WHERE calls > 0
+),
+uso_recursos AS (
+    SELECT 
+        round(100.0 * sum(shared_blks_hit) / nullif(sum(shared_blks_hit + shared_blks_read), 0), 2) as cache_hit_ratio,
+        count(*) as conexoes_ativas
+    FROM pg_stat_activity
+    WHERE state = 'active'
+)
+SELECT 
+    eg.*,
+    pq.queries_executadas,
+    pq.tempo_medio,
+    pq.tempo_maximo,
+    ur.cache_hit_ratio,
+    ur.conexoes_ativas,
+    CURRENT_TIMESTAMP as ultima_atualizacao
+FROM estatisticas_gerais eg, performance_queries pq, uso_recursos ur;
+\end{lstlisting}
+
+\subsection{Otimizacoes de Query}
+
+\subsubsection{Analise de Queries Lentas}
+
+\begin{lstlisting}[caption=Identificacao de queries problematicas]
+-- Habilitar log de queries lentas
+-- No postgresql.conf:
+-- log_min_duration_statement = 1000  # log queries > 1s
+-- log_statement = 'all'
+-- log_duration = on
+
+-- Query para analisar queries mais lentas
+SELECT 
+    substring(query, 1, 50) as query_inicio,
+    calls,
+    total_time,
+    mean_time,
+    rows,
+    100.0 * shared_blks_hit / nullif(shared_blks_hit + shared_blks_read, 0) AS hit_percent
+FROM pg_stat_statements 
+WHERE mean_time > 100  -- queries com media > 100ms
+ORDER BY mean_time DESC;
+
+-- Analisar plano de execucao de query especifica
+EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) 
+SELECT t.*, c.nome as categoria_nome
+FROM transacoes t
+JOIN categorias c ON t.categoria_id = c.id
+WHERE t.usuario_id = 'uuid_exemplo'
+  AND t.data_transacao >= '2024-01-01'
+ORDER BY t.data_transacao DESC;
+\end{lstlisting}
+
+\subsubsection{Otimizacoes Especificas}
+
+\begin{lstlisting}[caption=Queries otimizadas para casos comuns]
+-- Query otimizada para extrato mensal
+CREATE INDEX IF NOT EXISTS idx_transacoes_usuario_data_categoria 
+    ON transacoes(usuario_id, data_transacao DESC, categoria_id)
+    WHERE status = 'confirmada';
+
+-- View materializada para resumos mensais rapidos
+CREATE MATERIALIZED VIEW mv_resumo_mensal AS
+SELECT 
+    usuario_id,
+    DATE_TRUNC('month', data_transacao) as mes,
+    categoria_id,
+    SUM(CASE WHEN tipo = 'receita' THEN valor ELSE 0 END) as receitas,
+    SUM(CASE WHEN tipo = 'despesa' THEN valor ELSE 0 END) as despesas,
+    COUNT(*) as total_transacoes
+FROM transacoes
+WHERE status = 'confirmada'
+GROUP BY usuario_id, DATE_TRUNC('month', data_transacao), categoria_id;
+
+-- Indice na view materializada
+CREATE UNIQUE INDEX idx_mv_resumo_mensal 
+    ON mv_resumo_mensal(usuario_id, mes, categoria_id);
+
+-- Query otimizada usando a view
+SELECT 
+    c.nome as categoria,
+    sum(rm.receitas) as total_receitas,
+    sum(rm.despesas) as total_despesas
+FROM mv_resumo_mensal rm
+JOIN categorias c ON rm.categoria_id = c.id
+WHERE rm.usuario_id = $1
+  AND rm.mes >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '6 months')
+GROUP BY c.nome
+ORDER BY sum(rm.despesas) DESC;
+\end{lstlisting}
+
+\subsection{Manutencao Preventiva}
+
+\subsubsection{Scripts de Manutencao}
+
+\begin{lstlisting}[caption=Rotina de manutencao semanal]
+#!/bin/bash
+# manutencao_semanal.sh
+
+LOGFILE="/var/log/finops_manutencao.log"
+
+echo "$(date): Iniciando manutencao semanal" >> $LOGFILE
+
+# 1. VACUUM ANALYZE em tabelas principais
+echo "$(date): Executando VACUUM ANALYZE" >> $LOGFILE
+psql -d finops -c "VACUUM ANALYZE usuarios;"
+psql -d finops -c "VACUUM ANALYZE grupos;"
+psql -d finops -c "VACUUM ANALYZE contas;"
+psql -d finops -c "VACUUM ANALYZE categorias;"
+psql -d finops -c "VACUUM ANALYZE transacoes;"
+
+# 2. Reindex tabelas com muita atividade
+echo "$(date): Reindexando tabelas" >> $LOGFILE
+psql -d finops -c "REINDEX TABLE transacoes;"
+psql -d finops -c "REINDEX TABLE audit.audit_logs;"
+
+# 3. Atualizar estatisticas
+echo "$(date): Atualizando estatisticas" >> $LOGFILE
+psql -d finops -c "ANALYZE;"
+
+# 4. Refresh das views materializadas
+echo "$(date): Atualizando views materializadas" >> $LOGFILE
+psql -d finops -c "REFRESH MATERIALIZED VIEW CONCURRENTLY mv_resumo_mensal;"
+psql -d finops -c "REFRESH MATERIALIZED VIEW CONCURRENTLY resumo_financeiro_mensal;"
+
+# 5. Limpeza de dados antigos
+echo "$(date): Limpando dados antigos" >> $LOGFILE
+psql -d finops -c "DELETE FROM audit.audit_logs WHERE timestamp_operacao < CURRENT_DATE - INTERVAL '90 days';"
+psql -d finops -c "DELETE FROM sessoes WHERE data_expiracao < CURRENT_TIMESTAMP;"
+
+# 6. Verificar integridade
+echo "$(date): Verificando integridade" >> $LOGFILE
+psql -d finops -c "SELECT count(*) as usuarios_inconsistentes FROM usuarios WHERE email IS NULL OR email = '';"
+
+echo "$(date): Manutencao semanal concluida" >> $LOGFILE
+\end{lstlisting}
+
+\subsubsection{Monitoramento Automatico}
+
+\begin{lstlisting}[caption=Script de alerta de performance]
+#!/bin/bash
+# alertas_performance.sh
+
+DB_NAME="finops"
+EMAIL_ADMIN="admin@finops.com"
+LIMITE_CONEXOES=50
+LIMITE_TEMPO_QUERY=5000  # 5 segundos
+LIMITE_CACHE_HIT=95      # 95%
+
+# Verificar numero de conexoes
+CONEXOES_ATIVAS=$(psql -d $DB_NAME -t -c "SELECT count(*) FROM pg_stat_activity WHERE state = 'active';")
+
+if [ $CONEXOES_ATIVAS -gt $LIMITE_CONEXOES ]; then
+    echo "ALERTA: Muitas conexoes ativas ($CONEXOES_ATIVAS)" | \
+    mail -s "FinOps Performance Alert" $EMAIL_ADMIN
+fi
+
+# Verificar queries lentas
+QUERIES_LENTAS=$(psql -d $DB_NAME -t -c "
+    SELECT count(*) FROM pg_stat_statements 
+    WHERE mean_time > $LIMITE_TEMPO_QUERY AND calls > 10;
+")
+
+if [ $QUERIES_LENTAS -gt 0 ]; then
+    echo "ALERTA: $QUERIES_LENTAS queries com performance ruim" | \
+    mail -s "FinOps Query Performance Alert" $EMAIL_ADMIN
+fi
+
+# Verificar cache hit ratio
+CACHE_HIT=$(psql -d $DB_NAME -t -c "
+    SELECT round(100.0 * sum(blks_hit) / nullif(sum(blks_hit + blks_read), 0), 2)
+    FROM pg_stat_database WHERE datname = '$DB_NAME';
+")
+
+if (( $(echo "$CACHE_HIT < $LIMITE_CACHE_HIT" | bc -l) )); then
+    echo "ALERTA: Cache hit ratio baixo ($CACHE_HIT%)" | \
+    mail -s "FinOps Cache Performance Alert" $EMAIL_ADMIN
+fi
+
+# Verificar espaco em disco
+ESPACO_BD=$(psql -d $DB_NAME -t -c "SELECT pg_database_size('$DB_NAME');")
+ESPACO_GB=$((ESPACO_BD / 1024 / 1024 / 1024))
+
+if [ $ESPACO_GB -gt 10 ]; then
+    echo "AVISO: Banco de dados com ${ESPACO_GB}GB" | \
+    mail -s "FinOps Storage Warning" $EMAIL_ADMIN
+fi
+\end{lstlisting}
+
+\subsection{Configuracoes de Performance}
+
+\subsubsection{Parametros Otimizados}
+
+\begin{lstlisting}[caption=Configuracoes recomendadas do PostgreSQL]
+# postgresql.conf - Configuracoes para servidor com 4GB RAM
+
+# MEMORIA
+shared_buffers = 1GB                    # 25% da RAM
+effective_cache_size = 3GB              # 75% da RAM
+work_mem = 16MB                         # Para operacoes complexas
+maintenance_work_mem = 256MB            # Para VACUUM, CREATE INDEX
+
+# CHECKPOINT E WAL
+wal_buffers = 16MB
+checkpoint_completion_target = 0.9
+max_wal_size = 2GB
+min_wal_size = 512MB
+checkpoint_timeout = 10min
+
+# PLANNER
+effective_io_concurrency = 200         # Para SSD
+random_page_cost = 1.1                 # Para SSD
+default_statistics_target = 100
+
+# CONEXOES
+max_connections = 100
+shared_preload_libraries = 'pg_stat_statements'
+
+# LOG E MONITORAMENTO
+log_min_duration_statement = 1000      # Log queries > 1s
+log_checkpoints = on
+log_connections = on
+log_disconnections = on
+log_lock_waits = on
+log_statement = 'mod'
+log_line_prefix = '%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+
+# AUTO VACUUM
+autovacuum = on
+autovacuum_max_workers = 3
+autovacuum_naptime = 20s
+\end{lstlisting}

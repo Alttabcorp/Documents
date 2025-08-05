@@ -1,0 +1,238 @@
+\section{Interface e Experiencia do Usuario}
+
+\subsection{Principios de Design}
+
+\subsubsection{Design System}
+\begin{itemize}
+    \item \textbf{Simplicidade}: Interface limpa e intuitiva
+    \item \textbf{Consistencia}: Padroes visuais uniformes
+    \item \textbf{Acessibilidade}: Conformidade com WCAG 2.1
+    \item \textbf{Responsividade}: Adaptacao a diferentes dispositivos
+    \item \textbf{Feedback Visual}: Indicacoes claras de estado e acoes
+\end{itemize}
+
+\subsubsection{Cores e Tipografia}
+\begin{itemize}
+    \item \textbf{Paleta Primaria}:
+    \begin{itemize}
+        \item Verde (\#00A86B): Receitas e valores positivos
+        \item Vermelho (\#DC3545): Despesas e alertas
+        \item Azul (\#007BFF): Acoes primarias e links
+        \item Cinza (\#6C757D): Textos secundarios
+    \end{itemize}
+    \item \textbf{Tipografia}: 
+    \begin{itemize}
+        \item Fonte principal: Inter ou Roboto
+        \item Hierarquia clara de tamanhos (H1-H6)
+        \item Legibilidade em diferentes tamanhos de tela
+    \end{itemize}
+\end{itemize}
+
+\subsection{Estrutura de Navegacao}
+
+\subsubsection{Web Application}
+\begin{itemize}
+    \item \textbf{Header}: Logo, navegacao principal, perfil do usuario
+    \item \textbf{Sidebar}: Navegacao secundaria e acesso rapido
+    \item \textbf{Main Content}: Conteudo principal da pagina
+    \item \textbf{Footer}: Links uteis e informacoes secundarias
+\end{itemize}
+
+\subsubsection{Mobile Application}
+\begin{itemize}
+    \item \textbf{Tab Navigation}: Navegacao principal no bottom
+    \item \textbf{Stack Navigation}: Navegacao hierarquica
+    \item \textbf{Modal/Drawer}: Acoes secundarias e configuracoes
+\end{itemize}
+
+\subsection{Telas Principais}
+
+\subsubsection{Configuracao Inicial}
+
+Primeira tela que o usuario encontra apos o cadastro, responsavel por coletar informacoes essenciais:
+
+\begin{itemize}
+    \item \textbf{Selecao do Modelo Organizacional}:
+    \begin{itemize}
+        \item Renda Conjunta (divisao igualitaria ou percentual)
+        \item Divisao Proporcional (baseada na renda individual)
+        \item Individual (controle financeiro pessoal)
+    \end{itemize}
+    \item \textbf{Configuracao de Participantes}:
+    \begin{itemize}
+        \item Adicionar pessoas (nome, renda liquida)
+        \item Definir percentuais de responsabilidade
+        \item Estabelecer regras de divisao
+    \end{itemize}
+    \item \textbf{Objetivos financeiros}: Planejamento de reserva de emergencia
+    \item \textbf{Preferencias}: Metas de economia, tolerancia a risco
+    \item \textbf{Wizard de Configuracao}:
+    \begin{itemize}
+        \item Passo a passo guiado
+        \item Explicacoes sobre cada modelo
+        \item Simulacao em tempo real
+        \item Opcao de mudanca posterior
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Dashboard Principal}
+\begin{itemize}
+    \item \textbf{Resumo Financeiro}:
+    \begin{itemize}
+        \item Total de receitas por pessoa/conjunta
+        \item Total de gastos fixos (responsabilidade individual/compartilhada)
+        \item Valor disponivel para gastos livres (calculado por modelo)
+        \item Progresso de metas de poupanca (individual/compartilhada)
+        \item Indicador do modelo organizacional ativo
+    \end{itemize}
+    \item \textbf{Graficos Visuais}:
+    \begin{itemize}
+        \item Distribuicao de gastos por categoria e pessoa (pizza)
+        \item Evolucao mensal de receitas vs despesas (linha)
+        \item Comparacao de contribuicoes (quando aplicavel)
+        \item Progresso de metas (barras de progresso)
+    \end{itemize}
+    \item \textbf{Acoes Rapidas}:
+    \begin{itemize}
+        \item Adicionar nova receita (individual/conjunta)
+        \item Registrar gasto (com divisao automatica)
+        \item Transferir entre pessoas
+        \item Ver relatorios
+        \item Alterar modelo organizacional
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Gestao de Receitas}
+\begin{itemize}
+    \item \textbf{Lista de Receitas}:
+    \begin{itemize}
+        \item Visualizacao em cards ou tabela
+        \item Filtros por categoria e periodo
+        \item Busca por descricao
+    \end{itemize}
+    \item \textbf{Formulario de Receita}:
+    \begin{itemize}
+        \item Descricao da receita
+        \item Valor e moeda
+        \item Categoria (dropdown)
+        \item Data de recebimento
+        \item Recorrencia (mensal, unica, etc.)
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Gestao de Gastos}
+\begin{itemize}
+    \item \textbf{Abas de Categorias}:
+    \begin{itemize}
+        \item Gastos Fixos
+        \item Custos Variaveis
+        \item Investimentos
+        \item Gastos Livres
+    \end{itemize}
+    \item \textbf{Controle de Orcamento}:
+    \begin{itemize}
+        \item Valor orcado vs gasto
+        \item Indicadores visuais de status
+        \item Alertas de limite
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Relatorios}
+\begin{itemize}
+    \item \textbf{Filtros Avancados}:
+    \begin{itemize}
+        \item Periodo (mes, trimestre, ano)
+        \item Categorias especificas
+        \item Tipo de transacao
+    \end{itemize}
+    \item \textbf{Visualizacoes}:
+    \begin{itemize}
+        \item Graficos interativos
+        \item Tabelas detalhadas
+        \item Exportacao (PDF, Excel)
+    \end{itemize}
+\end{itemize}
+
+\subsection{Componentes de Interface}
+
+\subsubsection{Formularios}
+\begin{itemize}
+    \item Validacao em tempo real
+    \item Mensagens de erro contextuais
+    \item Auto-save para evitar perda de dados
+    \item Campos com mascaras (valor monetario)
+\end{itemize}
+
+\subsubsection{Tabelas e Listas}
+\begin{itemize}
+    \item Paginacao ou scroll infinito
+    \item Ordenacao por colunas
+    \item Filtros inline
+    \item Acoes em lote (bulk actions)
+\end{itemize}
+
+\subsubsection{Graficos}
+\begin{itemize}
+    \item Interatividade (hover, click)
+    \item Responsividade para mobile
+    \item Cores acessiveis para daltonicos
+    \item Opcao de export como imagem
+\end{itemize}
+
+\subsection{Estados da Interface}
+
+\subsubsection{Loading States}
+\begin{itemize}
+    \item Skeleton screens para carregamento
+    \item Progress bars para operacoes longas
+    \item Spinners para acoes pontuais
+\end{itemize}
+
+\subsubsection{Empty States}
+\begin{itemize}
+    \item Ilustracoes amigaveis
+    \item Calls-to-action claros
+    \item Orientacoes para primeiros passos
+\end{itemize}
+
+\subsubsection{Error States}
+\begin{itemize}
+    \item Mensagens claras e acionaveis
+    \item Sugestoes de solucao
+    \item Opcoes de retry ou contato
+\end{itemize}
+
+\subsection{Responsividade}
+
+\subsubsection{Breakpoints}
+\begin{itemize}
+    \item \textbf{Mobile}: 320px - 767px
+    \item \textbf{Tablet}: 768px - 1023px
+    \item \textbf{Desktop}: 1024px+
+\end{itemize}
+
+\subsubsection{Adaptacoes Mobile}
+\begin{itemize}
+    \item Navegacao simplificada
+    \item Botoes com tamanho adequado para touch
+    \item Formularios otimizados para teclado mobile
+    \item Graficos simplificados quando necessario
+\end{itemize}
+
+\subsection{Acessibilidade}
+
+\subsubsection{Conformidade WCAG 2.1}
+\begin{itemize}
+    \item Contraste adequado de cores
+    \item Navegacao por teclado
+    \item Screen reader support
+    \item Textos alternativos para imagens
+\end{itemize}
+
+\subsubsection{Usabilidade}
+\begin{itemize}
+    \item Linguagem clara e objetiva
+    \item Ícones com labels
+    \item Feedback sonoro opcional
+    \item Opcoes de zoom de texto
+\end{itemize}

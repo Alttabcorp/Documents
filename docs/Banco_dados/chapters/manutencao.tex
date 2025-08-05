@@ -1,0 +1,424 @@
+\section{Manutencao e Operacoes}
+
+\subsection{Rotinas de Manutencao}
+
+\subsubsection{Manutencao Diaria}
+
+\begin{lstlisting}[caption=Script de manutencao diaria]
+#!/bin/bash
+# manutencao_diaria.sh
+
+DB_NAME="finops"
+LOGFILE="/var/log/finops_daily.log"
+
+echo "$(date): Iniciando manutencao diaria" >> $LOGFILE
+
+# 1. Processar recorrencias vencidas
+echo "$(date): Processando recorrencias" >> $LOGFILE
+RECORRENCIAS_PROCESSADAS=$(psql -d $DB_NAME -t -c "SELECT processar_recorrencias();")
+echo "$(date): $RECORRENCIAS_PROCESSADAS recorrencias processadas" >> $LOGFILE
+
+# 2. Atualizar saldos das contas
+echo "$(date): Atualizando saldos" >> $LOGFILE
+psql -d $DB_NAME -c "
+DO \$\$
+DECLARE
+    usuario_record RECORD;
+BEGIN
+    FOR usuario_record IN SELECT id FROM usuarios WHERE ativo = true
+    LOOP
+        CALL atualizar_saldos_usuario(usuario_record.id);
+    END LOOP;
+END \$\$;
+"
+
+# 3. Atualizar metas de poupanca
+echo "$(date): Atualizando progresso das metas" >> $LOGFILE
+psql -d $DB_NAME -c "
+UPDATE metas SET 
+    valor_atual = (
+        SELECT COALESCE(SUM(t.valor), 0)
+        FROM transacoes t
+        WHERE t.categoria_id = metas.categoria_id
+          AND t.usuario_id = metas.usuario_id
+          AND t.tipo = 'receita'
+          AND t.status = 'confirmada'
+    ),
+    alcancada = (valor_atual >= valor_alvo),
+    data_alcancada = CASE 
+        WHEN valor_atual >= valor_alvo AND data_alcancada IS NULL 
+        THEN CURRENT_TIMESTAMP 
+        ELSE data_alcancada 
+    END
+WHERE ativa = true;
+"
+
+# 4. Limpar sessoes expiradas
+echo "$(date): Limpando sessoes expiradas" >> $LOGFILE
+SESSOES_REMOVIDAS=$(psql -d $DB_NAME -t -c "
+    DELETE FROM sessoes 
+    WHERE data_expiracao < CURRENT_TIMESTAMP 
+       OR data_ultimo_acesso < CURRENT_TIMESTAMP - INTERVAL '7 days';
+    SELECT ROW_COUNT();
+")
+echo "$(date): $SESSOES_REMOVIDAS sessoes removidas" >> $LOGFILE
+
+# 5. Refresh das views materializadas criticas
+echo "$(date): Atualizando views materializadas" >> $LOGFILE
+psql -d $DB_NAME -c "REFRESH MATERIALIZED VIEW CONCURRENTLY mv_resumo_mensal;"
+
+echo "$(date): Manutencao diaria concluida" >> $LOGFILE
+\end{lstlisting}
+
+\subsubsection{Manutencao Mensal}
+
+\begin{lstlisting}[caption=Script de manutencao mensal]
+#!/bin/bash
+# manutencao_mensal.sh
+
+DB_NAME="finops"
+LOGFILE="/var/log/finops_monthly.log"
+
+echo "$(date): Iniciando manutencao mensal" >> $LOGFILE
+
+# 1. Arquivar dados antigos
+echo "$(date): Arquivando dados antigos" >> $LOGFILE
+
+# Criar tabela de arquivo se nao existir
+psql -d $DB_NAME -c "
+CREATE TABLE IF NOT EXISTS arquivo.transacoes_antigas (
+    LIKE transacoes INCLUDING ALL
+);
+"
+
+# Mover transacoes com mais de 2 anos para arquivo
+psql -d $DB_NAME -c "
+INSERT INTO arquivo.transacoes_antigas 
+SELECT * FROM transacoes 
+WHERE data_transacao < CURRENT_DATE - INTERVAL '2 years';
+
+DELETE FROM transacoes 
+WHERE data_transacao < CURRENT_DATE - INTERVAL '2 years';
+"
+
+# 2. Recriar indices fragmentados
+echo "$(date): Recriando indices fragmentados" >> $LOGFILE
+psql -d $DB_NAME -c "
+DO \$\$
+DECLARE
+    idx_record RECORD;
+BEGIN
+    FOR idx_record IN 
+        SELECT schemaname, tablename, indexname
+        FROM pg_stat_user_indexes
+        WHERE idx_scan > 1000 AND idx_tup_read > idx_tup_fetch * 2
+    LOOP
+        EXECUTE 'REINDEX INDEX ' || quote_ident(idx_record.indexname);
+    END LOOP;
+END \$\$;
+"
+
+# 3. Atualizar estatisticas completas
+echo "$(date): Atualizando estatisticas completas" >> $LOGFILE
+psql -d $DB_NAME -c "ANALYZE VERBOSE;"
+
+# 4. Verificar integridade referencial
+echo "$(date): Verificando integridade referencial" >> $LOGFILE
+psql -d $DB_NAME -c "
+-- Verificar orfaos em transacoes
+SELECT 'Transacoes sem usuario:' as problema, count(*) as quantidade
+FROM transacoes t
+LEFT JOIN usuarios u ON t.usuario_id = u.id
+WHERE u.id IS NULL
+
+UNION ALL
+
+SELECT 'Transacoes sem conta:' as problema, count(*) as quantidade  
+FROM transacoes t
+LEFT JOIN contas c ON t.conta_id = c.id
+WHERE c.id IS NULL
+
+UNION ALL
+
+SELECT 'Contas sem usuario:' as problema, count(*) as quantidade
+FROM contas c
+LEFT JOIN usuarios u ON c.usuario_id = u.id
+WHERE u.id IS NULL AND c.compartilhada = false;
+"
+
+# 5. Otimizar tamanho do banco
+echo "$(date): Executando VACUUM FULL em tabelas grandes" >> $LOGFILE
+psql -d $DB_NAME -c "
+SELECT 'VACUUM FULL ' || schemaname || '.' || tablename || ';'
+FROM pg_tables 
+WHERE schemaname = 'public'
+  AND pg_total_relation_size(schemaname||'.'||tablename) > 100*1024*1024; -- >100MB
+" | psql -d $DB_NAME
+
+echo "$(date): Manutencao mensal concluida" >> $LOGFILE
+\end{lstlisting}
+
+\subsection{Monitoramento Operacional}
+
+\subsubsection{Dashboard de Status}
+
+\begin{lstlisting}[caption=Funcao para status geral do sistema]
+CREATE OR REPLACE FUNCTION status_sistema()
+RETURNS TABLE (
+    componente TEXT,
+    status TEXT,
+    detalhes TEXT,
+    ultimo_check TIMESTAMP
+) AS $$
+BEGIN
+    -- Status do banco de dados
+    RETURN QUERY SELECT 
+        'Banco de Dados'::TEXT,
+        'OK'::TEXT,
+        'Conectado e funcionando'::TEXT,
+        CURRENT_TIMESTAMP;
+    
+    -- Status das conexoes
+    RETURN QUERY 
+    WITH conexoes AS (
+        SELECT count(*) as total FROM pg_stat_activity WHERE state = 'active'
+    )
+    SELECT 
+        'Conexoes Ativas'::TEXT,
+        CASE WHEN total > 80 THEN 'ALERTA' ELSE 'OK' END::TEXT,
+        'Total: ' || total::TEXT,
+        CURRENT_TIMESTAMP
+    FROM conexoes;
+    
+    -- Status do tamanho do banco
+    RETURN QUERY
+    WITH tamanho AS (
+        SELECT pg_size_pretty(pg_database_size('finops')) as size_text,
+               pg_database_size('finops') as size_bytes
+    )
+    SELECT 
+        'Tamanho BD'::TEXT,
+        CASE WHEN size_bytes > 10*1024*1024*1024 THEN 'ATENCAO' ELSE 'OK' END::TEXT,
+        size_text,
+        CURRENT_TIMESTAMP
+    FROM tamanho;
+    
+    -- Status dos backups
+    RETURN QUERY
+    WITH ultimo_backup AS (
+        SELECT 
+            EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MAX(timestamp_operacao)))/3600 as horas
+        FROM audit.audit_logs 
+        WHERE tabela = 'sistema' AND operacao = 'BACKUP'
+    )
+    SELECT 
+        'Ultimo Backup'::TEXT,
+        CASE 
+            WHEN horas IS NULL THEN 'ERRO'
+            WHEN horas > 48 THEN 'ATRASADO' 
+            ELSE 'OK' 
+        END::TEXT,
+        CASE 
+            WHEN horas IS NULL THEN 'Nenhum backup encontrado'
+            ELSE 'Ha ' || round(horas::numeric, 1) || ' horas'
+        END,
+        CURRENT_TIMESTAMP
+    FROM ultimo_backup;
+    
+    -- Status das recorrencias
+    RETURN QUERY
+    WITH recorrencias_pendentes AS (
+        SELECT count(*) as pendentes
+        FROM recorrencias 
+        WHERE ativa = true AND proxima_execucao < CURRENT_DATE
+    )
+    SELECT 
+        'Recorrencias'::TEXT,
+        CASE WHEN pendentes > 10 THEN 'ATENCAO' ELSE 'OK' END::TEXT,
+        pendentes::TEXT || ' pendentes',
+        CURRENT_TIMESTAMP
+    FROM recorrencias_pendentes;
+END;
+$$ LANGUAGE plpgsql;
+\end{lstlisting}
+
+\subsubsection{Alertas Automaticos}
+
+\begin{lstlisting}[caption=Sistema de alertas baseado em triggers]
+-- Tabela para armazenar alertas
+CREATE TABLE sistema.alertas (
+    id BIGSERIAL PRIMARY KEY,
+    tipo VARCHAR(50) NOT NULL,
+    severidade INTEGER NOT NULL, -- 1=info, 2=warning, 3=error, 4=critical
+    titulo VARCHAR(200) NOT NULL,
+    descricao TEXT,
+    usuario_id UUID REFERENCES usuarios(id),
+    resolvido BOOLEAN DEFAULT false,
+    data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    data_resolucao TIMESTAMP
+);
+
+-- Funcao para criar alerta
+CREATE OR REPLACE FUNCTION criar_alerta(
+    p_tipo TEXT,
+    p_severidade INTEGER,
+    p_titulo TEXT,
+    p_descricao TEXT DEFAULT NULL,
+    p_usuario_id UUID DEFAULT NULL
+)
+RETURNS void AS $$
+BEGIN
+    INSERT INTO sistema.alertas (tipo, severidade, titulo, descricao, usuario_id)
+    VALUES (p_tipo, p_severidade, p_titulo, p_descricao, p_usuario_id);
+    
+    -- Se for critico, notificar imediatamente
+    IF p_severidade >= 4 THEN
+        PERFORM pg_notify('alerta_critico', 
+            json_build_object(
+                'tipo', p_tipo,
+                'titulo', p_titulo,
+                'usuario_id', p_usuario_id
+            )::text
+        );
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger para detectar transacoes suspeitas
+CREATE OR REPLACE FUNCTION verificar_transacao_suspeita()
+RETURNS TRIGGER AS $$
+DECLARE
+    media_usuario DECIMAL(15,2);
+    limite_alerta DECIMAL(15,2);
+BEGIN
+    -- Calcular media de transacoes do usuario nos ultimos 30 dias
+    SELECT COALESCE(AVG(valor), 0) INTO media_usuario
+    FROM transacoes 
+    WHERE usuario_id = NEW.usuario_id 
+      AND tipo = NEW.tipo
+      AND data_transacao >= CURRENT_DATE - INTERVAL '30 days';
+    
+    limite_alerta := media_usuario * 5; -- 5x a media
+    
+    -- Criar alerta se valor for muito alto
+    IF NEW.valor > limite_alerta AND limite_alerta > 100 THEN
+        PERFORM criar_alerta(
+            'transacao_alta',
+            2,
+            'Transacao com valor elevado detectada',
+            'Valor: R$ ' || NEW.valor || ' (Media: R$ ' || round(media_usuario, 2) || ')',
+            NEW.usuario_id
+        );
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_verificar_transacao_suspeita
+    AFTER INSERT ON transacoes
+    FOR EACH ROW EXECUTE FUNCTION verificar_transacao_suspeita();
+\end{lstlisting}
+
+\subsection{Procedures de Operacao}
+
+\subsubsection{Gerenciamento de Usuarios}
+
+\begin{lstlisting}[caption=Procedures para operacoes de usuario]
+-- Procedure para desativar usuario
+CREATE OR REPLACE PROCEDURE desativar_usuario(p_usuario_id UUID)
+LANGUAGE plpgsql AS $$
+BEGIN
+    -- Desativar usuario
+    UPDATE usuarios SET ativo = false WHERE id = p_usuario_id;
+    
+    -- Desativar contas
+    UPDATE contas SET ativa = false WHERE usuario_id = p_usuario_id;
+    
+    -- Encerrar sessoes ativas
+    UPDATE sessoes SET ativa = false WHERE usuario_id = p_usuario_id;
+    
+    -- Log da operacao
+    INSERT INTO audit.audit_logs (tabela, operacao, usuario_id, dados_novos)
+    VALUES ('usuarios', 'DEACTIVATE', p_usuario_id, 
+            jsonb_build_object('timestamp', CURRENT_TIMESTAMP));
+    
+    COMMIT;
+END;
+$$;
+
+-- Procedure para migrar dados entre usuarios
+CREATE OR REPLACE PROCEDURE migrar_dados_usuario(
+    p_usuario_origem UUID,
+    p_usuario_destino UUID
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+    -- Verificar se usuarios existem
+    IF NOT EXISTS (SELECT 1 FROM usuarios WHERE id = p_usuario_origem) THEN
+        RAISE EXCEPTION 'Usuario origem nao encontrado';
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM usuarios WHERE id = p_usuario_destino) THEN
+        RAISE EXCEPTION 'Usuario destino nao encontrado';
+    END IF;
+    
+    -- Migrar transacoes
+    UPDATE transacoes SET usuario_id = p_usuario_destino 
+    WHERE usuario_id = p_usuario_origem;
+    
+    -- Migrar contas (marcar como transferidas)
+    UPDATE contas SET 
+        usuario_id = p_usuario_destino,
+        nome = nome || ' (Transferida)'
+    WHERE usuario_id = p_usuario_origem;
+    
+    -- Migrar categorias personalizadas
+    UPDATE categorias SET usuario_id = p_usuario_destino 
+    WHERE usuario_id = p_usuario_origem AND sistema = false;
+    
+    -- Log da migracao
+    INSERT INTO audit.audit_logs (tabela, operacao, dados_novos)
+    VALUES ('usuarios', 'MIGRATE', 
+            jsonb_build_object(
+                'origem', p_usuario_origem,
+                'destino', p_usuario_destino,
+                'timestamp', CURRENT_TIMESTAMP
+            ));
+    
+    COMMIT;
+END;
+$$;
+\end{lstlisting}
+
+\subsection{Automacao e Jobs}
+
+\subsubsection{Configuracao de Jobs}
+
+\begin{lstlisting}[caption=Configuracao de cron jobs]
+# /etc/cron.d/finops
+
+# Manutencao diaria (2:00 AM)
+0 2 * * * postgres /opt/finops/scripts/manutencao_diaria.sh
+
+# Backup diario (3:00 AM)
+0 3 * * * postgres /opt/finops/scripts/backup_completo.sh
+
+# Verificacao de backup (3:30 AM)
+30 3 * * * postgres /opt/finops/scripts/verificar_backups.sh
+
+# Manutencao semanal (domingo 4:00 AM)
+0 4 * * 0 postgres /opt/finops/scripts/manutencao_semanal.sh
+
+# Manutencao mensal (primeiro domingo 5:00 AM)
+0 5 1-7 * 0 postgres /opt/finops/scripts/manutencao_mensal.sh
+
+# Monitoramento de performance (a cada 15 minutos)
+*/15 * * * * postgres /opt/finops/scripts/alertas_performance.sh
+
+# Processamento de recorrencias (todo dia 1:00 AM)
+0 1 * * * postgres psql -d finops -c "SELECT processar_recorrencias();"
+
+# Limpeza de logs (semanal, sabado 23:00)
+0 23 * * 6 postgres /opt/finops/scripts/limpeza_logs.sh
+\end{lstlisting}

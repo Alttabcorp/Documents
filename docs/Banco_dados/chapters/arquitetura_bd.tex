@@ -1,0 +1,90 @@
+\section{Arquitetura do Banco de Dados}
+
+\subsection{Arquitetura Geral}
+
+O banco de dados FinOps segue uma arquitetura de tres camadas integrada com framework NestJS:
+
+\begin{enumerate}
+    \item \textbf{Camada de Aplicacao}: NestJS Framework com TypeORM/Prisma
+    \item \textbf{Camada de Logica}: PostgreSQL com procedures e triggers
+    \item \textbf{Camada de Dados}: Armazenamento fisico com backup automatico
+\end{enumerate}
+
+\textbf{Stack Tecnologica:}
+\begin{itemize}
+    \item \textbf{Backend}: NestJS (Node.js + TypeScript)
+    \item \textbf{Banco de Dados}: PostgreSQL 15+
+    \item \textbf{ORM}: TypeORM ou Prisma (a definir)
+    \item \textbf{Cache}: Redis (opcional para performance)
+    \item \textbf{API}: REST/GraphQL endpoints
+\end{itemize}
+
+\subsection{Distribuicao dos Dados}
+
+\subsubsection{Esquemas Logicos}
+\begin{itemize}
+    \item \textbf{public}: Tabelas principais do sistema
+    \item \textbf{audit}: Tabelas de auditoria e log
+    \item \textbf{config}: Configuracoes e parametros do sistema
+\end{itemize}
+
+\subsection{Relacionamentos Principais}
+
+\subsubsection{Hierarquia de Usuarios}
+\begin{lstlisting}[caption=Estrutura hierarquica de usuarios]
+Usuarios
+|-- Individual (usuario_id)
+`-- Grupos (grupo_id)
+    |-- Usuario Principal
+    |-- Usuario Secundario
+    `-- Configuracao do Grupo
+\end{lstlisting}
+
+\subsubsection{Fluxo de Dados Financeiros}
+\begin{enumerate}
+    \item \textbf{Entrada}: Usuario cadastra transacao
+    \item \textbf{Processamento}: Sistema calcula impactos nos orcamentos
+    \item \textbf{Distribuicao}: Dados sao organizados conforme modelo escolhido
+    \item \textbf{Relatorios}: Geracao de dashboards e relatorios
+\end{enumerate}
+
+\subsection{Estrategia de Particao}
+
+Para otimizar performance com grandes volumes de dados:
+
+\subsubsection{Particao por Data}
+\begin{itemize}
+    \item \textbf{Transacoes}: Particionadas por mes/ano
+    \item \textbf{Logs de Auditoria}: Particionadas por mes
+    \item \textbf{Historico}: Dados antigos movidos para tabelas de arquivo
+\end{itemize}
+
+\subsubsection{Particao por Usuario}
+\begin{itemize}
+    \item \textbf{Dados Individuais}: Separados por usuario\_id
+    \item \textbf{Dados de Grupo}: Compartilhados entre membros
+\end{itemize}
+
+\subsection{Estrategia de Cache}
+
+\begin{itemize}
+    \item \textbf{Redis}: Cache de sessao e dados frequentes
+    \item \textbf{Materialized Views}: Relatorios pre-calculados
+    \item \textbf{Query Cache}: Cache de consultas complexas
+\end{itemize}
+
+\subsection{Integracoes Externas}
+
+\textbf{Fase Inicial - Sem APIs Externas:}
+\begin{itemize}
+    \item \textbf{Entrada de Dados}: Manual via interface web/mobile
+    \item \textbf{Servicos de Backup}: Backup local e em nuvem
+    \item \textbf{Monitoramento}: Logs internos do NestJS
+\end{itemize}
+
+\textbf{Futuras Integracoes (Opcionais):}
+\begin{itemize}
+    \item \textbf{Open Banking}: Integracao com bancos (futura implementacao)
+    \item \textbf{APIs de Cartao}: Sincronizacao automatica (futura implementacao)
+    \item \textbf{Servicos de Nuvem}: AWS/GCP para backup avancado
+\end{itemize}

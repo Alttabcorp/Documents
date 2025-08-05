@@ -1,0 +1,298 @@
+\section{Scripts de Criacao}
+
+\subsection{Script Principal de Instalacao}
+
+\begin{lstlisting}[caption=Script completo de criacao do banco]
+-- ================================================
+-- FINOPS DATABASE CREATION SCRIPT
+-- Versao: 1.0
+-- Data: \today
+-- ================================================
+
+-- Criar extensoes necessarias
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+
+-- Criar esquemas
+CREATE SCHEMA IF NOT EXISTS audit;
+CREATE SCHEMA IF NOT EXISTS config;
+
+-- ================================================
+-- TABELAS PRINCIPAIS
+-- ================================================
+
+-- Usuarios
+CREATE TABLE usuarios (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome VARCHAR(100) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    senha_hash VARCHAR(255) NOT NULL,
+    telefone VARCHAR(20),
+    data_nascimento DATE,
+    cpf VARCHAR(14) UNIQUE,
+    ativo BOOLEAN DEFAULT true,
+    email_verificado BOOLEAN DEFAULT false,
+    data_ultimo_acesso TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Grupos
+CREATE TABLE grupos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome VARCHAR(100) NOT NULL,
+    descricao TEXT,
+    modelo_organizacao VARCHAR(20) NOT NULL DEFAULT 'individual',
+    configuracao JSONB,
+    ativo BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Usuario-Grupos (relacionamento N:M)
+CREATE TABLE usuario_grupos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    grupo_id UUID NOT NULL REFERENCES grupos(id) ON DELETE CASCADE,
+    papel VARCHAR(20) NOT NULL DEFAULT 'membro',
+    permissoes JSONB,
+    ativo BOOLEAN DEFAULT true,
+    data_entrada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    data_saida TIMESTAMP,
+    UNIQUE(usuario_id, grupo_id)
+);
+
+-- Categorias
+CREATE TABLE categorias (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome VARCHAR(100) NOT NULL,
+    descricao TEXT,
+    tipo VARCHAR(20) NOT NULL,
+    cor VARCHAR(7) DEFAULT '#6c757d',
+    icone VARCHAR(50),
+    categoria_pai_id UUID REFERENCES categorias(id) ON DELETE SET NULL,
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    grupo_id UUID REFERENCES grupos(id) ON DELETE CASCADE,
+    sistema BOOLEAN DEFAULT false,
+    ativa BOOLEAN DEFAULT true,
+    ordem INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Contas
+CREATE TABLE contas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome VARCHAR(100) NOT NULL,
+    descricao TEXT,
+    tipo VARCHAR(30) NOT NULL,
+    subtipo VARCHAR(30),
+    moeda VARCHAR(3) DEFAULT 'BRL',
+    saldo_inicial DECIMAL(15,2) DEFAULT 0.00,
+    saldo_atual DECIMAL(15,2) DEFAULT 0.00,
+    limite_credito DECIMAL(15,2),
+    banco VARCHAR(100),
+    agencia VARCHAR(10),
+    numero_conta VARCHAR(20),
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    grupo_id UUID REFERENCES grupos(id) ON DELETE SET NULL,
+    compartilhada BOOLEAN DEFAULT false,
+    ativa BOOLEAN DEFAULT true,
+    cor VARCHAR(7) DEFAULT '#007bff',
+    icone VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Transacoes
+CREATE TABLE transacoes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    descricao VARCHAR(255) NOT NULL,
+    valor DECIMAL(15,2) NOT NULL,
+    tipo VARCHAR(20) NOT NULL,
+    data_transacao DATE NOT NULL,
+    data_vencimento DATE,
+    conta_id UUID NOT NULL REFERENCES contas(id) ON DELETE RESTRICT,
+    categoria_id UUID NOT NULL REFERENCES categorias(id) ON DELETE RESTRICT,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    grupo_id UUID REFERENCES grupos(id) ON DELETE SET NULL,
+    conta_destino_id UUID REFERENCES contas(id) ON DELETE SET NULL,
+    status VARCHAR(20) DEFAULT 'confirmada',
+    observacoes TEXT,
+    tags TEXT[],
+    anexos JSONB,
+    recorrencia JSONB,
+    divisao_splitwise JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ================================================
+-- CONSTRAINTS
+-- ================================================
+
+-- Usuarios
+ALTER TABLE usuarios ADD CONSTRAINT chk_usuarios_email 
+    CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
+ALTER TABLE usuarios ADD CONSTRAINT chk_usuarios_cpf 
+    CHECK (cpf IS NULL OR cpf ~ '^\d{3}\.\d{3}\.\d{3}-\d{2}$');
+
+-- Grupos
+ALTER TABLE grupos ADD CONSTRAINT chk_grupos_modelo 
+    CHECK (modelo_organizacao IN ('individual', 'renda_conjunta', 'splitwise', 'fundo_comum'));
+
+-- Usuario-Grupos
+ALTER TABLE usuario_grupos ADD CONSTRAINT chk_usuario_grupos_papel 
+    CHECK (papel IN ('administrador', 'membro', 'dependente', 'convidado'));
+
+-- Categorias
+ALTER TABLE categorias ADD CONSTRAINT chk_categorias_tipo 
+    CHECK (tipo IN ('receita', 'despesa', 'transferencia'));
+ALTER TABLE categorias ADD CONSTRAINT chk_categorias_escopo 
+    CHECK ((usuario_id IS NOT NULL AND grupo_id IS NULL) OR
+           (usuario_id IS NULL AND grupo_id IS NOT NULL) OR
+           (usuario_id IS NULL AND grupo_id IS NULL AND sistema = true));
+
+-- Contas
+ALTER TABLE contas ADD CONSTRAINT chk_contas_tipo 
+    CHECK (tipo IN ('corrente', 'poupanca', 'investimento', 'cartao_credito', 
+                   'cartao_debito', 'dinheiro', 'outros'));
+ALTER TABLE contas ADD CONSTRAINT chk_contas_saldo 
+    CHECK (saldo_atual >= 0 OR tipo = 'cartao_credito');
+
+-- Transacoes
+ALTER TABLE transacoes ADD CONSTRAINT chk_transacoes_tipo 
+    CHECK (tipo IN ('receita', 'despesa', 'transferencia'));
+ALTER TABLE transacoes ADD CONSTRAINT chk_transacoes_status 
+    CHECK (status IN ('pendente', 'confirmada', 'cancelada', 'agendada'));
+ALTER TABLE transacoes ADD CONSTRAINT chk_transacoes_valor 
+    CHECK (valor != 0);
+ALTER TABLE transacoes ADD CONSTRAINT chk_transacoes_transferencia 
+    CHECK ((tipo = 'transferencia' AND conta_destino_id IS NOT NULL) OR
+           (tipo != 'transferencia' AND conta_destino_id IS NULL));
+
+-- ================================================
+-- INDICES
+-- ================================================
+
+-- Usuarios
+CREATE INDEX idx_usuarios_email ON usuarios(email);
+CREATE INDEX idx_usuarios_ativo ON usuarios(ativo);
+CREATE INDEX idx_usuarios_cpf ON usuarios(cpf) WHERE cpf IS NOT NULL;
+
+-- Grupos
+CREATE INDEX idx_grupos_ativo ON grupos(ativo);
+CREATE INDEX idx_grupos_modelo ON grupos(modelo_organizacao);
+
+-- Usuario-Grupos
+CREATE INDEX idx_usuario_grupos_usuario ON usuario_grupos(usuario_id);
+CREATE INDEX idx_usuario_grupos_grupo ON usuario_grupos(grupo_id);
+CREATE INDEX idx_usuario_grupos_ativo ON usuario_grupos(ativo);
+
+-- Categorias
+CREATE INDEX idx_categorias_usuario ON categorias(usuario_id);
+CREATE INDEX idx_categorias_grupo ON categorias(grupo_id);
+CREATE INDEX idx_categorias_tipo ON categorias(tipo);
+CREATE INDEX idx_categorias_pai ON categorias(categoria_pai_id);
+CREATE INDEX idx_categorias_ativa ON categorias(ativa);
+
+-- Contas
+CREATE INDEX idx_contas_usuario ON contas(usuario_id);
+CREATE INDEX idx_contas_grupo ON contas(grupo_id);
+CREATE INDEX idx_contas_tipo ON contas(tipo);
+CREATE INDEX idx_contas_ativa ON contas(ativa);
+CREATE INDEX idx_contas_usuario_ativa ON contas(usuario_id, ativa);
+
+-- Transacoes
+CREATE INDEX idx_transacoes_conta ON transacoes(conta_id);
+CREATE INDEX idx_transacoes_categoria ON transacoes(categoria_id);
+CREATE INDEX idx_transacoes_usuario ON transacoes(usuario_id);
+CREATE INDEX idx_transacoes_grupo ON transacoes(grupo_id);
+CREATE INDEX idx_transacoes_data ON transacoes(data_transacao);
+CREATE INDEX idx_transacoes_status ON transacoes(status);
+CREATE INDEX idx_transacoes_tipo ON transacoes(tipo);
+CREATE INDEX idx_transacoes_usuario_data ON transacoes(usuario_id, data_transacao DESC);
+CREATE INDEX idx_transacoes_conta_data ON transacoes(conta_id, data_transacao DESC);
+
+-- ================================================
+-- DADOS INICIAIS
+-- ================================================
+
+-- Categorias do sistema
+INSERT INTO categorias (nome, tipo, cor, icone, sistema) VALUES
+    ('Salario', 'receita', '#28a745', 'money', true),
+    ('Freelance', 'receita', '#17a2b8', 'briefcase', true),
+    ('Investimentos', 'receita', '#6f42c1', 'trending-up', true),
+    ('Outros Rendimentos', 'receita', '#6c757d', 'plus-circle', true),
+    
+    ('Alimentacao', 'despesa', '#fd7e14', 'utensils', true),
+    ('Transporte', 'despesa', '#20c997', 'car', true),
+    ('Moradia', 'despesa', '#dc3545', 'home', true),
+    ('Saude', 'despesa', '#e83e8c', 'heart', true),
+    ('Educacao', 'despesa', '#6f42c1', 'book', true),
+    ('Lazer', 'despesa', '#ffc107', 'smile', true),
+    ('Roupas', 'despesa', '#17a2b8', 'shopping-bag', true),
+    ('Outros Gastos', 'despesa', '#6c757d', 'more-horizontal', true),
+    
+    ('Transferencia', 'transferencia', '#007bff', 'arrow-right', true);
+
+COMMIT;
+\end{lstlisting}
+
+\subsection{Script de Rollback}
+
+\begin{lstlisting}[caption=Script para reverter instalacao]
+-- ================================================
+-- FINOPS DATABASE ROLLBACK SCRIPT
+-- ================================================
+
+-- Remover indices
+DROP INDEX IF EXISTS idx_transacoes_conta_data;
+DROP INDEX IF EXISTS idx_transacoes_usuario_data;
+DROP INDEX IF EXISTS idx_transacoes_tipo;
+DROP INDEX IF EXISTS idx_transacoes_status;
+DROP INDEX IF EXISTS idx_transacoes_data;
+DROP INDEX IF EXISTS idx_transacoes_grupo;
+DROP INDEX IF EXISTS idx_transacoes_usuario;
+DROP INDEX IF EXISTS idx_transacoes_categoria;
+DROP INDEX IF EXISTS idx_transacoes_conta;
+
+DROP INDEX IF EXISTS idx_contas_usuario_ativa;
+DROP INDEX IF EXISTS idx_contas_ativa;
+DROP INDEX IF EXISTS idx_contas_tipo;
+DROP INDEX IF EXISTS idx_contas_grupo;
+DROP INDEX IF EXISTS idx_contas_usuario;
+
+DROP INDEX IF EXISTS idx_categorias_ativa;
+DROP INDEX IF EXISTS idx_categorias_pai;
+DROP INDEX IF EXISTS idx_categorias_tipo;
+DROP INDEX IF EXISTS idx_categorias_grupo;
+DROP INDEX IF EXISTS idx_categorias_usuario;
+
+DROP INDEX IF EXISTS idx_usuario_grupos_ativo;
+DROP INDEX IF EXISTS idx_usuario_grupos_grupo;
+DROP INDEX IF EXISTS idx_usuario_grupos_usuario;
+
+DROP INDEX IF EXISTS idx_grupos_modelo;
+DROP INDEX IF EXISTS idx_grupos_ativo;
+
+DROP INDEX IF EXISTS idx_usuarios_cpf;
+DROP INDEX IF EXISTS idx_usuarios_ativo;
+DROP INDEX IF EXISTS idx_usuarios_email;
+
+-- Remover tabelas (ordem importa devido aos relacionamentos)
+DROP TABLE IF EXISTS transacoes CASCADE;
+DROP TABLE IF EXISTS contas CASCADE;
+DROP TABLE IF EXISTS categorias CASCADE;
+DROP TABLE IF EXISTS usuario_grupos CASCADE;
+DROP TABLE IF EXISTS grupos CASCADE;
+DROP TABLE IF EXISTS usuarios CASCADE;
+
+-- Remover esquemas
+DROP SCHEMA IF EXISTS config CASCADE;
+DROP SCHEMA IF EXISTS audit CASCADE;
+
+-- Remover extensoes (opcional - pode afetar outros bancos)
+-- DROP EXTENSION IF EXISTS "pg_stat_statements";
+-- DROP EXTENSION IF EXISTS "uuid-ossp";
+\end{lstlisting}

@@ -1,0 +1,120 @@
+\section{Modelo Conceitual}
+
+\subsection{Diagrama Entidade-Relacionamento}
+
+O modelo conceitual representa as entidades principais e seus relacionamentos:
+
+\subsubsection{Entidades Principais}
+
+\paragraph{Usuario}
+\begin{itemize}
+    \item Pessoa fisica que utiliza o sistema
+    \item Pode estar associado a um grupo (casal/familia)
+    \item Possui configuracoes individuais
+\end{itemize}
+
+\paragraph{Grupo}
+\begin{itemize}
+    \item Agrupamento de usuarios (casal, familia, republica)
+    \item Define o modelo de organizacao financeira
+    \item Compartilha dados conforme configuracao
+\end{itemize}
+
+\paragraph{Conta}
+\begin{itemize}
+    \item Representa contas bancarias, carteiras, investimentos
+    \item Pode ser individual ou compartilhada
+    \item Possui saldo atual e historico
+\end{itemize}
+
+\paragraph{Categoria}
+\begin{itemize}
+    \item Classificacao de receitas e despesas
+    \item Pode ser personalizada por usuario/grupo
+    \item Possui subcategorias hierarquicas
+\end{itemize}
+
+\paragraph{Transacao}
+\begin{itemize}
+    \item Movimentacao financeira (entrada ou saida)
+    \item Associada a uma conta e categoria
+    \item Possui informacoes de divisao (para modelo Splitwise)
+\end{itemize}
+
+\paragraph{Orcamento}
+\begin{itemize}
+    \item Planejamento financeiro por categoria/periodo
+    \item Pode ser individual ou compartilhado
+    \item Possui metas e limites de gasto
+\end{itemize}
+
+\paragraph{Meta}
+\begin{itemize}
+    \item Objetivos de poupanca ou investimento
+    \item Possui valor alvo e prazo
+    \item Acompanha progresso automaticamente
+\end{itemize}
+
+\subsection{Relacionamentos}
+
+\subsubsection{Usuario - Grupo (N:M)}
+\begin{itemize}
+    \item Um usuario pode pertencer a multiplos grupos
+    \item Um grupo pode ter multiplos usuarios
+    \item Relacionamento possui papel (principal, secundario, dependente)
+\end{itemize}
+
+\subsubsection{Usuario - Conta (1:N)}
+\begin{itemize}
+    \item Um usuario pode ter multiplas contas
+    \item Uma conta pertence a um usuario especifico
+    \item Contas compartilhadas referenciam o grupo
+\end{itemize}
+
+\subsubsection{Conta - Transacao (1:N)}
+\begin{itemize}
+    \item Uma conta pode ter multiplas transacoes
+    \item Uma transacao pertence a uma conta especifica
+\end{itemize}
+
+\subsubsection{Categoria - Transacao (1:N)}
+\begin{itemize}
+    \item Uma categoria pode ter multiplas transacoes
+    \item Uma transacao possui uma categoria principal
+\end{itemize}
+
+\subsubsection{Usuario - Orcamento (1:N)}
+\begin{itemize}
+    \item Um usuario pode ter multiplos orcamentos
+    \item Um orcamento pode ser individual ou de grupo
+\end{itemize}
+
+\subsection{Cardinalidades e Restricoes}
+
+\begin{itemize}
+    \item \textbf{Usuario}: Obrigatorio ter pelo menos um email valido
+    \item \textbf{Grupo}: Minimo 2 usuarios, maximo configuravel
+    \item \textbf{Conta}: Deve ter saldo inicial definido
+    \item \textbf{Transacao}: Valor deve ser diferente de zero
+    \item \textbf{Categoria}: Nome deve ser unico por usuario/grupo
+    \item \textbf{Orcamento}: Periodo deve ser valido (inicio < fim)
+    \item \textbf{Meta}: Valor alvo deve ser positivo
+\end{itemize}
+
+\subsection{Regras de Negocio}
+
+\subsubsection{Modelos de Organizacao}
+\begin{enumerate}
+    \item \textbf{Individual}: Todas as entidades sao privadas do usuario
+    \item \textbf{Renda Conjunta}: Contas e orcamentos sao compartilhados
+    \item \textbf{Splitwise}: Transacoes individuais, divisao calculada
+    \item \textbf{Fundo Comum}: Hibrido entre individual e compartilhado
+\end{enumerate}
+
+\subsubsection{Integridade Referencial}
+\begin{itemize}
+    \item Exclusao de usuario: Transferir dados para outro membro do grupo
+    \item Exclusao de grupo: Converter contas compartilhadas em individuais
+    \item Exclusao de categoria: Mover transacoes para categoria "Outros"
+    \item Exclusao de conta: Transferir saldo para conta principal
+\end{itemize}

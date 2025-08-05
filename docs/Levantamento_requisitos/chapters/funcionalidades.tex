@@ -1,0 +1,588 @@
+\section{Funcionalidades Detalhadas}
+
+\subsection{Metodologia de Organizacao Financeira}
+
+\subsubsection{Modelos de Organizacao Suportados}
+O sistema oferece flexibilidade para diferentes tipos de organizacao financeira:
+
+\paragraph{Modelo 1: Renda Conjunta (Padrao)}
+\begin{itemize}
+    \item \textbf{Aplicacao}: Casais que juntam todas as rendas
+    \item \textbf{Divisao}: 50/50 apos todas as alocacoes
+    \item \textbf{Exemplo}: Casal soma R\$ 8.000, apos gastos fixos, poupanca etc., sobram R\$ 2.000 que sao divididos em R\$ 1.000 para cada
+\end{itemize}
+
+\paragraph{Modelo 2: Divisao Igualitaria com Acerto (Splitwise)}
+\begin{itemize}
+    \item \textbf{Aplicacao}: Casal que quer dividir gastos compartilhados de forma justa
+    \item \textbf{Metodo}: Cada pessoa cadastra o que pagou, sistema calcula divisao 50/50
+    \item \textbf{Exemplo}: Joao gastou R\$ 1.000, Maria R\$ 400 -> Maria deve R\$ 300 para Joao
+    \item \textbf{Acerto}: Sistema sugere transferencia mensal para equilibrar as contas
+\end{itemize}
+
+\paragraph{Modelo 3: Organizacao Individual}
+\begin{itemize}
+    \item \textbf{Aplicacao}: Republicas, pessoas solteiras, ou independencia financeira total
+    \item \textbf{Divisao}: Cada pessoa responsavel por suas proprias contas
+    \item \textbf{Exemplo}: Divisao apenas de gastos compartilhados (aluguel, internet)
+\end{itemize}
+
+\paragraph{Modelo 4: Contas Separadas + Fundo Comum}
+\begin{itemize}
+    \item \textbf{Aplicacao}: Casais que querem autonomia financeira mas compartilhar despesas essenciais
+    \item \textbf{Divisao}: Cada um contribui valor fixo para fundo comum, restante fica individual
+    \item \textbf{Exemplo}: Casal contribui R\$ 2.000 cada para fundo comum, mantem resto individual
+    \item \textbf{Vantagem}: Transparencia apenas no essencial, total privacidade no resto
+\end{itemize}
+
+\subsubsection{Fluxo de Organizacao Adaptavel}
+O sistema implementa a seguinte metodologia que se adapta ao modelo escolhido:
+
+\begin{enumerate}
+    \item \textbf{Receitas}: Individuais ou conjuntas conforme modelo
+    \item \textbf{Gastos Fixos}: Pessoais e/ou compartilhados
+    \item \textbf{Custos Variaveis}: Orcamento individual ou conjunto
+    \item \textbf{Poupanca}: Metas individuais ou conjuntas
+    \item \textbf{Reserva de Emergencia}: Por pessoa ou familia
+    \item \textbf{Investimentos}: Estrategia individual ou conjunta
+    \item \textbf{Gastos Livres}: Calculo adaptado ao modelo
+\end{enumerate}
+
+\subsubsection{Implementacao Tecnica}
+
+\begin{lstlisting}[language=C, caption=Motor de Calculo Adaptativo]
+const calcularOrganizacaoFinanceira = (receitas, gastos, modelo, configuracao) => {
+  let resultado = {};
+  
+  switch(modelo) {
+    case 'RENDA_CONJUNTA':
+      resultado = calcularRendaConjunta(receitas, configuracao);
+      break;
+    case 'DIVISAO_SPLITWISE':
+      resultado = calcularDivisaoSplitwise(gastos, configuracao);
+      break;
+    case 'INDIVIDUAL':
+      resultado = calcularIndividual(receitas, configuracao);
+      break;
+    case 'FUNDO_COMUM':
+      resultado = calcularFundoComum(receitas, configuracao);
+      break;
+  }
+  
+  return resultado;
+};
+
+const calcularRendaConjunta = (receitas, config) => {
+  const totalReceitas = receitas.reduce((sum, r) => sum + r.valor, 0);
+  const gastosFixes = calcularGastosFixos();
+  const custosVariaveis = config.percentualVariaveis * totalReceitas;
+  const poupanca = config.percentualPoupanca * totalReceitas;
+  const reservaEmergencia = config.percentualReserva * totalReceitas;
+  const investimentos = config.percentualInvestimentos * totalReceitas;
+  
+  const valorUtilizado = gastosFixes + custosVariaveis + poupanca + 
+                        reservaEmergencia + investimentos;
+  const gastosLivres = totalReceitas - valorUtilizado;
+  const gastosLivresIndividual = gastosLivres / 2; // Divisao 50/50
+  
+  return { gastosLivresIndividual, totalReceitas, ... };
+};
+
+const calcularDivisaoSplitwise = (gastos, config) => {
+  // Gastos registrados por cada pessoa
+  const gastosPessoa1 = gastos.filter(g => g.pagador === 'pessoa1');
+  const gastosPessoa2 = gastos.filter(g => g.pagador === 'pessoa2');
+  
+  // Total gasto por cada pessoa
+  const totalPessoa1 = gastosPessoa1.reduce((sum, g) => sum + g.valor, 0);
+  const totalPessoa2 = gastosPessoa2.reduce((sum, g) => sum + g.valor, 0);
+  
+  // Total geral e divisao ideal (50/50)
+  const totalGeral = totalPessoa1 + totalPessoa2;
+  const idealPorPessoa = totalGeral / 2;
+  
+  // Calculo de quem deve o que
+  const saldoPessoa1 = idealPorPessoa - totalPessoa1;
+  const saldoPessoa2 = idealPorPessoa - totalPessoa2;
+  
+  // Quem deve transferir para quem
+  let transferencia = null;
+  if (saldoPessoa1 > 0) {
+    transferencia = {
+      de: 'pessoa2',
+      para: 'pessoa1', 
+      valor: saldoPessoa1
+    };
+  } else if (saldoPessoa2 > 0) {
+    transferencia = {
+      de: 'pessoa1',
+      para: 'pessoa2',
+      valor: saldoPessoa2
+    };
+  }
+  
+  return { 
+    totalGeral,
+    idealPorPessoa,
+    totalPessoa1,
+    totalPessoa2,
+    transferencia
+  };
+};
+        \item Maria pagou: Energia R\$ 200, Internet R\$ 100, Uber Eats R\$ 80
+    \end{itemize}
+    \item \textbf{Calculo automatico de divisao justa}:
+    \begin{itemize}
+        \item Total gasto: R\$ 2.210 (R\$ 1.830 Joao + R\$ 380 Maria)
+        \item Ideal por pessoa: R\$ 1.105 cada
+        \item Maria deve para Joao: R\$ 725 (R\$ 1.105 - R\$ 380)
+    \end{itemize}
+    \item \textbf{Funcionalidades Splitwise}:
+    \begin{itemize}
+        \item Historico de quem deve o que
+        \item Sugestao de acerto mensal
+        \item Categorias de gastos compartilhados vs individuais
+        \item Registro de pagamentos para equilibrar contas
+    \end{itemize}
+\end{itemize}
+O sistema oferece flexibilidade para diferentes tipos de organizacao financeira:
+
+\paragraph{Modelo 1: Renda Conjunta (Padrao)}
+\begin{itemize}
+    \item \textbf{Aplicacao}: Casais que juntam todas as rendas
+    \item \textbf{Divisao}: 50/50 apos todas as alocacoes
+    \item \textbf{Exemplo}: Casal soma R\$ 8.000, apos gastos fixos, poupanca etc., sobram R\$ 2.000 que sao divididos em R\$ 1.000 para cada
+\end{itemize}
+
+\paragraph{Modelo 2: Divisao Igualitaria com Acerto (Splitwise)}
+\begin{itemize}
+    \item \textbf{Aplicacao}: Casal que quer dividir gastos compartilhados de forma justa
+    \item \textbf{Metodo}: Cada pessoa cadastra o que pagou, sistema calcula divisao 50/50
+    \item \textbf{Exemplo}: Joao gastou R\$ 1.000, Maria R\$ 400 -> Maria deve R\$ 300 para Joao
+    \item \textbf{Acerto}: Sistema sugere transferencia mensal para equilibrar as contas
+\end{itemize}
+
+\paragraph{Modelo 3: Organizacao Individual}
+\begin{itemize}
+    \item \textbf{Aplicacao}: Republicas, pessoas solteiras, ou independencia financeira total
+    \item \textbf{Divisao}: Cada pessoa responsavel por suas proprias contas
+    \item \textbf{Exemplo}: Divisao apenas de gastos compartilhados (aluguel, internet)
+\end{itemize}
+
+\subsubsection{Fluxo de Organizacao Adaptavel}
+O sistema implementa a seguinte metodologia que se adapta ao modelo escolhido:
+
+\begin{enumerate}
+    \item \textbf{Receitas}: Individuais ou conjuntas conforme modelo
+    \item \textbf{Gastos Fixos}: Pessoais e/ou compartilhados
+    \item \textbf{Custos Variaveis}: Orcamento individual ou conjunto
+    \item \textbf{Poupanca}: Metas individuais ou conjuntas
+    \item \textbf{Reserva de Emergencia}: Por pessoa ou familia
+    \item \textbf{Investimentos}: Estrategia individual ou conjunta
+    \item \textbf{Gastos Livres}: Calculo adaptado ao modelo
+\end{enumerate}
+
+\subsubsection{Calculo Automatico Adaptavel}
+\begin{lstlisting}[caption=Exemplo de calculo automatico por modelo]
+// Logica de calculo adaptavel por modelo de organizacao
+const calcularDistribuicaoFinanceira = (receitas, configuracao, modelo) => {
+  let resultado = {};
+  
+  switch(modelo) {
+    case 'RENDA_CONJUNTA':
+      resultado = calcularRendaConjunta(receitas, configuracao);
+      break;
+    case 'DIVISAO_SPLITWISE':
+      resultado = calcularDivisaoSplitwise(gastos, configuracao);
+      break;
+    case 'INDIVIDUAL':
+      resultado = calcularIndividual(receitas, configuracao);
+      break;
+    case 'FUNDO_COMUM':
+      resultado = calcularFundoComum(receitas, configuracao);
+      break;
+  }
+  
+  return resultado;
+};
+
+const calcularRendaConjunta = (receitas, config) => {
+  const totalReceitas = receitas.reduce((sum, r) => sum + r.valor, 0);
+  const gastosFixes = calcularGastosFixos();
+  const custosVariaveis = config.percentualVariaveis * totalReceitas;
+  const poupanca = config.percentualPoupanca * totalReceitas;
+  const reservaEmergencia = config.percentualReserva * totalReceitas;
+  const investimentos = config.percentualInvestimentos * totalReceitas;
+  
+  const valorUtilizado = gastosFixes + custosVariaveis + poupanca + 
+                        reservaEmergencia + investimentos;
+  const gastosLivres = totalReceitas - valorUtilizado;
+  const gastosLivresIndividual = gastosLivres / 2; // Divisao 50/50
+  
+  return { gastosLivresIndividual, totalReceitas, ... };
+};
+
+const calcularDivisaoSplitwise = (gastos, config) => {
+  // Gastos registrados por cada pessoa
+  const gastosPessoa1 = gastos.filter(g => g.pagador === 'pessoa1');
+  const gastosPessoa2 = gastos.filter(g => g.pagador === 'pessoa2');
+  
+  // Total gasto por cada pessoa
+  const totalPessoa1 = gastosPessoa1.reduce((sum, g) => sum + g.valor, 0);
+  const totalPessoa2 = gastosPessoa2.reduce((sum, g) => sum + g.valor, 0);
+  
+  // Total geral e divisao ideal (50/50)
+  const totalGeral = totalPessoa1 + totalPessoa2;
+  const idealPorPessoa = totalGeral / 2;
+  
+  // Calculo de quem deve o que
+  const saldoPessoa1 = idealPorPessoa - totalPessoa1;
+  const saldoPessoa2 = idealPorPessoa - totalPessoa2;
+  
+  // Quem deve transferir para quem
+  let transferencia = null;
+  if (saldoPessoa1 > 0) {
+    transferencia = {
+      de: 'pessoa2',
+      para: 'pessoa1', 
+      valor: saldoPessoa1
+    };
+  } else if (saldoPessoa2 > 0) {
+    transferencia = {
+      de: 'pessoa1',
+      para: 'pessoa2',
+      valor: saldoPessoa2
+    };
+  }
+  
+  return { 
+    totalGeral,
+    idealPorPessoa,
+    totalPessoa1,
+    totalPessoa2,
+    transferencia
+  };
+};
+
+const calcularFundoComum = (receitas, config) => {
+  const fundoComumPorPessoa = config.valorFundoComum;
+  const totalFundoComum = fundoComumPorPessoa * 2;
+  
+  // Cada pessoa contribui valor fixo para o fundo
+  const resultadoPessoa1 = {
+    receitaTotal: receitas.pessoa1.total,
+    contribuicaoFundo: fundoComumPorPessoa,
+    dinheiroIndividual: receitas.pessoa1.total - fundoComumPorPessoa
+  };
+  
+  const resultadoPessoa2 = {
+    receitaTotal: receitas.pessoa2.total,
+    contribuicaoFundo: fundoComumPorPessoa,
+    dinheiroIndividual: receitas.pessoa2.total - fundoComumPorPessoa
+  };
+  
+  return { 
+    fundoComum: totalFundoComum,
+    pessoa1: resultadoPessoa1,
+    pessoa2: resultadoPessoa2 
+  };
+};
+\end{lstlisting}
+
+\subsubsection{Modulo de Configuracao de Modelo}
+
+\paragraph{Selecao do Modelo de Organizacao}
+\begin{itemize}
+    \item \textbf{Onboarding Inteligente}:
+    \begin{itemize}
+        \item Questionario inicial sobre situacao familiar/habitacional
+        \item Sugestao automatica do modelo mais adequado
+        \item Possibilidade de mudanca posterior
+    \end{itemize}
+    
+    \item \textbf{Configuracoes por Modelo}:
+    \begin{itemize}
+        \item \textit{Renda Conjunta}: Percentuais de alocacao, divisao 50/50 ou customizada
+        \item \textit{Divisao Splitwise}: Categorias de gastos compartilhados, configuracao de acerto mensal
+        \item \textit{Individual}: Apenas gastos compartilhados configuraveis
+        \item \textit{Fundo Comum}: Valor da contribuicao mensal por pessoa
+    \end{itemize}
+    
+    \item \textbf{Flexibilidade de Mudanca}:
+    \begin{itemize}
+        \item Migracao entre modelos sem perda de dados historicos
+        \item Simulacao de cenarios antes da mudanca
+        \item Backup automatico das configuracoes anteriores
+    \end{itemize}
+\end{itemize}
+
+\paragraph{Casos de Uso Detalhados}
+
+\textbf{Cenario 1: Casal com Renda Conjunta (Voce e sua esposa)}
+\begin{itemize}
+    \item Soma total: R\$ 8.000 (R\$ 5.000 + R\$ 3.000)
+    \item Gastos fixos: R\$ 3.500 (aluguel, contas, etc.)
+    \item Poupanca (15\%): R\$ 1.200
+    \item Reserva (10\%): R\$ 800
+    \item Investimentos (15\%): R\$ 1.200
+    \item Gastos livres restantes: R\$ 1.300 -> R\$ 650 para cada
+\end{itemize}
+
+\textbf{Cenario 2: Casal com Divisao Proporcional}
+\begin{itemize}
+    \item Pessoa A: R\$ 5.000 (62.5\% da renda total)
+    \item Pessoa B: R\$ 3.000 (37.5\% da renda total)
+    \item Aluguel R\$ 1.500: A paga R\$ 937, B paga R\$ 563
+    \item Energia R\$ 200: A paga R\$ 125, B paga R\$ 75
+    \item Cada um gerencia o restante individualmente
+\end{itemize}
+
+\textbf{Cenario 3: Republica/Individual}
+\begin{itemize}
+    \item 3 pessoas dividindo apartamento
+    \item Gastos compartilhados: aluguel, internet, limpeza
+    \item Divisao igualitaria ou por uso/quarto
+    \item Cada pessoa gerencia 100\% de suas financas pessoais
+\end{itemize}
+
+\subsubsection{Modulo de Receitas}
+
+\paragraph{Funcionalidades}
+\begin{itemize}
+    \item \textbf{Cadastro de Receitas}:
+    \begin{itemize}
+        \item Descricao personalizada
+        \item Valor em reais (R\$)
+        \item Categoria (salario, freelance, investimentos, etc.)
+        \item Data de recebimento
+        \item Recorrencia (mensal, eventual)
+        \item Status (recebida, pendente, cancelada)
+    \end{itemize}
+    
+    \item \textbf{Categorias Pre-definidas}:
+    \begin{itemize}
+        \item Salario CLT
+        \item Freelance/Autonomo
+        \item Rendimentos de Investimentos
+        \item Alugueis Recebidos
+        \item Vendas/Comissoes
+        \item Outras Receitas
+    \end{itemize}
+    
+    \item \textbf{Relatorios de Receitas}:
+    \begin{itemize}
+        \item Evolucao mensal
+        \item Distribuicao por categoria
+        \item Previsao vs realizado
+        \item Sazonalidade
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Modulo de Gastos Fixos}
+
+\paragraph{Funcionalidades}
+\begin{itemize}
+    \item \textbf{Cadastro de Gastos Fixos}:
+    \begin{itemize}
+        \item Descricao (ex: Aluguel, Internet, Seguro)
+        \item Valor mensal
+        \item Categoria
+        \item Data de vencimento
+        \item Conta de debito
+        \item Recorrencia automatica
+    \end{itemize}
+    
+    \item \textbf{Categorias de Gastos Fixos}:
+    \begin{itemize}
+        \item Moradia (aluguel, condominio, IPTU)
+        \item Transporte (financiamento, seguro, IPVA)
+        \item Alimentacao (supermercado basico)
+        \item Saude (plano de saude, medicamentos)
+        \item Educacao (mensalidades, cursos)
+        \item Servicos (internet, telefone, streaming)
+        \item Seguros (vida, residencial, veicular)
+    \end{itemize}
+    
+    \item \textbf{Lembretes e Alertas}:
+    \begin{itemize}
+        \item Notificacoes de vencimento
+        \item Alertas de aumento de valores
+        \item Sugestoes de economia
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Modulo de Custos Variaveis}
+
+\paragraph{Funcionalidades}
+\begin{itemize}
+    \item \textbf{Orcamento por Categoria}:
+    \begin{itemize}
+        \item Definicao de limite mensal
+        \item Acompanhamento em tempo real
+        \item Alertas de aproximacao do limite
+    \end{itemize}
+    
+    \item \textbf{Categorias de Custos Variaveis}:
+    \begin{itemize}
+        \item Alimentacao (restaurantes, delivery)
+        \item Transporte (combustivel, Uber, transporte publico)
+        \item Lazer (cinema, shows, viagens)
+        \item Vestuario
+        \item Saude (consultas particulares, farmacia)
+        \item Casa (manutencao, decoracao)
+        \item Educacao (livros, cursos extras)
+    \end{itemize}
+    
+    \item \textbf{Controle de Gastos}:
+    \begin{itemize}
+        \item Registro rapido via app
+        \item Foto do comprovante
+        \item Divisao por tags
+        \item Geolocalizacao opcional
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Modulo de Poupanca e Reservas}
+
+\paragraph{Conceito e Diferenciacao}
+O sistema oferece **indicacoes percentuais** para alocacao financeira, funcionando como um organizador digital que **substitui planilhas Excel**:
+
+\begin{itemize}
+    \item \textbf{Poupanca (Meta/Objetivo)}: Recursos destinados para objetivos especificos de medio/longo prazo
+    \item \textbf{Reserva de Emergencia}: Valor separado para situacoes imprevistas e urgencias
+    \item \textbf{Diferenca Principal}: Poupanca tem objetivo especifico; Reserva e para emergencias
+\end{itemize}
+
+\paragraph{Funcionalidades}
+\begin{itemize}
+    \item \textbf{Indicacao Percentual para Poupanca}:
+    \begin{itemize}
+        \item Sugestao de 15-20\% da renda liquida
+        \item Objetivos especificos (viagem, casa, carro, casamento)
+        \item Valor total da meta definido pelo usuario
+        \item Prazo estimado para atingir o objetivo
+        \item Calculo automatico: se meta = R\$ 30.000 e poupa R\$ 500/mes = 60 meses
+        \item Progresso visual em barras e percentuais
+    \end{itemize}
+    
+    \item \textbf{Indicacao Percentual para Reserva de Emergencia}:
+    \begin{itemize}
+        \item Sugestao de 10-15\% da renda liquida
+        \item Meta recomendada: 6-12 meses de gastos essenciais
+        \item Calculo automatico: se gastos essenciais = R\$ 3.000, reserva = R\$ 18.000-36.000
+        \item **Sem acompanhamento de rendimento** - apenas controle de valores salvos
+        \item Simulacao de tempo para atingir meta com valor mensal definido
+    \end{itemize}
+    
+    \item \textbf{Controle Manual de Valores}:
+    \begin{itemize}
+        \item Registro manual de depositos realizados
+        \item Registro manual de retiradas (com justificativa)
+        \item Saldo atual informado pelo usuario
+        \item Historico de movimentacoes para acompanhamento
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Modulo de Investimentos}
+
+\paragraph{Conceito e Diferenciacao}
+O modulo de investimentos funciona como um **indicador percentual** e organizador de valores, **sem integracao com corretoras ou APIs**:
+
+\begin{itemize}
+    \item \textbf{Diferenca da Poupanca}: Investimentos buscam crescimento do capital; Poupanca e para objetivos especificos
+    \item \textbf{Diferenca da Reserva}: Investimentos podem ter risco; Reserva deve ser conservadora e liquida
+    \item \textbf{Funcao no FinOps}: Sugestao de quanto alocar e organizacao manual dos valores
+\end{itemize}
+
+\paragraph{Funcionalidades}
+\begin{itemize}
+    \item \textbf{Indicacao Percentual para Investimentos}:
+    \begin{itemize}
+        \item Sugestao de 10-25\% da renda liquida (dependendo do perfil)
+        \item Educacao sobre perfil conservador (10-15\%), moderado (15-20\%), arrojado (20-25\%)
+        \item Calculo automatico do valor mensal disponivel para investir
+    \end{itemize}
+    
+    \item \textbf{Categorizacao de Tipos (Educacional)}:
+    \begin{itemize}
+        \item \textbf{Renda Fixa}: CDB, LCI, LCA, Tesouro Direto (menor risco)
+        \item \textbf{Renda Variavel}: Acoes, FIIs, ETFs (maior risco e potencial)
+        \item \textbf{Fundos}: Fundos de Investimento diversos
+        \item \textbf{Previdencia}: PGBL, VGBL (longo prazo)
+        \item \textbf{Outros}: Criptomoedas, commodities
+        \item **Apenas para organizacao e educacao - sem acompanhamento automatico**
+    \end{itemize}
+    
+    \item \textbf{Controle Manual de Aportes}:
+    \begin{itemize}
+        \item Registro manual de valores investidos por mes
+        \item Registro por categoria de investimento
+        \item Total acumulado informado pelo usuario
+        \item **Sem acompanhamento de rentabilidade automatica**
+        \item Historico de aportes para controle pessoal
+    \end{itemize}
+    
+    \item \textbf{Educacao Financeira}:
+    \begin{itemize}
+        \item Explicacao basica de cada tipo de investimento
+        \item Sugestao de diversificacao por perfil
+        \item Calculadoras simples de juros compostos
+        \item Dicas de quando revisar e rebalancear (manualmente)
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Modulo de Gastos Livres}
+
+\paragraph{Funcionalidades}
+\begin{itemize}
+    \item \textbf{Calculo Automatico}:
+    \begin{itemize}
+        \item Valor disponivel apos todas as alocacoes
+        \item Divisao automatica para casal (50/50)
+        \item Ajuste manual se necessario
+    \end{itemize}
+    
+    \item \textbf{Controle Individual}:
+    \begin{itemize}
+        \item Saldo individual em tempo real
+        \item Historico de gastos pessoais
+        \item Categorizacao livre
+        \item Transferencias entre parceiros
+    \end{itemize}
+    
+    \item \textbf{Flexibilidade}:
+    \begin{itemize}
+        \item Acumulo para meses seguintes
+        \item Antecipacao de valores futuros
+        \item Emprestimos internos entre parceiros
+    \end{itemize}
+\end{itemize}
+
+\subsection{Funcionalidades Transversais}
+
+\subsubsection{Dashboard e Relatorios}
+\begin{itemize}
+    \item Visao geral financeira em tempo real
+    \item Graficos de evolucao temporal
+    \item Comparacao entre periodos
+    \item Indicadores de performance financeira
+    \item Export para PDF e Excel
+\end{itemize}
+
+\subsubsection{Notificacoes}
+\begin{itemize}
+    \item Push notifications para mobile
+    \item Email notifications opciais
+    \item Lembretes de vencimentos
+    \item Alertas de orcamento
+    \item Resumos semanais/mensais
+\end{itemize}
+
+\subsubsection{Configuracoes}
+\begin{itemize}
+    \item Personalizacao de categorias
+    \item Definicao de percentuais padrao
+    \item Configuracao de lembretes
+    \item Preferencias de relatorios
+    \item Configuracoes de privacidade
+\end{itemize}

@@ -1,0 +1,231 @@
+\section{Modelo Fisico}
+
+\subsection{Implementacao Completa}
+
+\subsubsection{Tabelas Complementares}
+
+\paragraph{Tabela: orcamentos}
+\begin{lstlisting}[caption=Estrutura da tabela orcamentos]
+CREATE TABLE orcamentos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome VARCHAR(100) NOT NULL,
+    descricao TEXT,
+    valor_planejado DECIMAL(15,2) NOT NULL,
+    valor_gasto DECIMAL(15,2) DEFAULT 0.00,
+    periodo_inicio DATE NOT NULL,
+    periodo_fim DATE NOT NULL,
+    categoria_id UUID REFERENCES categorias(id) ON DELETE CASCADE,
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    grupo_id UUID REFERENCES grupos(id) ON DELETE CASCADE,
+    tipo_periodo VARCHAR(20) DEFAULT 'mensal',
+    alerta_percentual INTEGER DEFAULT 80,
+    ativo BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_orcamentos_periodo CHECK (periodo_inicio <= periodo_fim),
+    CONSTRAINT chk_orcamentos_valor CHECK (valor_planejado > 0),
+    CONSTRAINT chk_orcamentos_alerta CHECK (alerta_percentual BETWEEN 0 AND 100),
+    CONSTRAINT chk_orcamentos_escopo CHECK (
+        (usuario_id IS NOT NULL AND grupo_id IS NULL) OR
+        (usuario_id IS NULL AND grupo_id IS NOT NULL)
+    )
+);
+\end{lstlisting}
+
+\paragraph{Tabela: metas}
+\begin{lstlisting}[caption=Estrutura da tabela metas]
+CREATE TABLE metas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome VARCHAR(100) NOT NULL,
+    descricao TEXT,
+    valor_alvo DECIMAL(15,2) NOT NULL,
+    valor_atual DECIMAL(15,2) DEFAULT 0.00,
+    data_alvo DATE,
+    tipo VARCHAR(30) NOT NULL,
+    categoria_id UUID REFERENCES categorias(id) ON DELETE SET NULL,
+    conta_destino_id UUID REFERENCES contas(id) ON DELETE SET NULL,
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    grupo_id UUID REFERENCES grupos(id) ON DELETE CASCADE,
+    frequencia_contribuicao VARCHAR(20),
+    valor_contribuicao DECIMAL(15,2),
+    ativa BOOLEAN DEFAULT true,
+    alcancada BOOLEAN DEFAULT false,
+    data_alcancada TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_metas_valor CHECK (valor_alvo > 0),
+    CONSTRAINT chk_metas_tipo CHECK (
+        tipo IN ('poupanca', 'investimento', 'emergencia', 'compra', 'viagem', 'outros')
+    ),
+    CONSTRAINT chk_metas_frequencia CHECK (
+        frequencia_contribuicao IS NULL OR 
+        frequencia_contribuicao IN ('diario', 'semanal', 'mensal', 'anual')
+    ),
+    CONSTRAINT chk_metas_escopo CHECK (
+        (usuario_id IS NOT NULL AND grupo_id IS NULL) OR
+        (usuario_id IS NULL AND grupo_id IS NOT NULL)
+    )
+);
+\end{lstlisting}
+
+\paragraph{Tabela: recorrencias}
+\begin{lstlisting}[caption=Estrutura da tabela recorrencias]
+CREATE TABLE recorrencias (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome VARCHAR(100) NOT NULL,
+    descricao TEXT,
+    valor DECIMAL(15,2) NOT NULL,
+    tipo VARCHAR(20) NOT NULL,
+    frequencia VARCHAR(20) NOT NULL,
+    dia_vencimento INTEGER,
+    data_inicio DATE NOT NULL,
+    data_fim DATE,
+    conta_id UUID NOT NULL REFERENCES contas(id) ON DELETE CASCADE,
+    categoria_id UUID NOT NULL REFERENCES categorias(id) ON DELETE RESTRICT,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    grupo_id UUID REFERENCES grupos(id) ON DELETE SET NULL,
+    proxima_execucao DATE NOT NULL,
+    ativa BOOLEAN DEFAULT true,
+    auto_confirmar BOOLEAN DEFAULT false,
+    observacoes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_recorrencias_tipo CHECK (
+        tipo IN ('receita', 'despesa')
+    ),
+    CONSTRAINT chk_recorrencias_frequencia CHECK (
+        frequencia IN ('diario', 'semanal', 'quinzenal', 'mensal', 'bimestral', 
+                      'trimestral', 'semestral', 'anual')
+    ),
+    CONSTRAINT chk_recorrencias_dia CHECK (
+        dia_vencimento IS NULL OR dia_vencimento BETWEEN 1 AND 31
+    ),
+    CONSTRAINT chk_recorrencias_datas CHECK (
+        data_fim IS NULL OR data_fim >= data_inicio
+    )
+);
+\end{lstlisting}
+
+\paragraph{Tabela: splitwise\_divisoes}
+\begin{lstlisting}[caption=Estrutura da tabela splitwise_divisoes]
+CREATE TABLE splitwise_divisoes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    transacao_id UUID NOT NULL REFERENCES transacoes(id) ON DELETE CASCADE,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    valor_original DECIMAL(15,2) NOT NULL,
+    percentual_divisao DECIMAL(5,2) DEFAULT 50.00,
+    valor_devido DECIMAL(15,2) NOT NULL,
+    pago BOOLEAN DEFAULT false,
+    data_pagamento TIMESTAMP,
+    observacoes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_splitwise_percentual CHECK (
+        percentual_divisao >= 0 AND percentual_divisao <= 100
+    ),
+    UNIQUE($transacao\_id$, $usuario\_id$)
+);
+\end{lstlisting}
+
+\subsubsection{Tabelas de Auditoria}
+
+\paragraph{Tabela: audit\_logs}
+\begin{lstlisting}[caption=Estrutura da tabela audit_logs]
+CREATE TABLE audit.audit_logs (
+    id BIGSERIAL PRIMARY KEY,
+    tabela VARCHAR(100) NOT NULL,
+    operacao VARCHAR(10) NOT NULL,
+    usuario_id UUID,
+    dados_antigos JSONB,
+    dados_novos JSONB,
+    timestamp_operacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ip_origem INET,
+    user_agent TEXT,
+    
+    CONSTRAINT chk_audit_operacao CHECK (
+        operacao IN ('INSERT', 'UPDATE', 'DELETE')
+    )
+) PARTITION BY RANGE ($timestamp\_operacao$);
+\end{lstlisting}
+
+\paragraph{Tabela: sessoes}
+\begin{lstlisting}[caption=Estrutura da tabela sessoes]
+CREATE TABLE sessoes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    token_hash VARCHAR(255) NOT NULL,
+    ip_origem INET NOT NULL,
+    user_agent TEXT,
+    data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    data_expiracao TIMESTAMP NOT NULL,
+    data_ultimo_acesso TIMESTAMP,
+    ativa BOOLEAN DEFAULT true,
+    
+    CONSTRAINT chk_sessoes_expiracao CHECK (data_expiracao > data_criacao)
+);
+\end{lstlisting}
+
+\subsection{Views Materializadas}
+
+\paragraph{View: resumo\_financeiro\_mensal}
+\begin{lstlisting}[caption=View materializada para resumos mensais]
+CREATE MATERIALIZED VIEW resumo_financeiro_mensal AS
+SELECT 
+    usuario_id,
+    grupo_id,
+    DATE_TRUNC('month', data_transacao) AS mes_ano,
+    SUM(CASE WHEN tipo = 'receita' THEN valor ELSE 0 END) AS total_receitas,
+    SUM(CASE WHEN tipo = 'despesa' THEN valor ELSE 0 END) AS total_despesas,
+    SUM(CASE WHEN tipo = 'receita' THEN valor ELSE -valor END) AS saldo_mensal,
+    COUNT(*) AS total_transacoes
+FROM transacoes 
+WHERE status = 'confirmada'
+GROUP BY usuario_id, grupo_id, DATE_TRUNC('month', data_transacao);
+
+-- Indice para performance
+CREATE UNIQUE INDEX idx_resumo_financeiro_pk 
+    ON resumo_financeiro_mensal(usuario_id, COALESCE(grupo_id, '00000000-0000-0000-0000-000000000000'::uuid), mes_ano);
+\end{lstlisting}
+
+\subsection{Funcoes de Sistema}
+
+\paragraph{Funcao: atualizar\_saldo\_conta}
+\begin{lstlisting}[caption=Funcao para atualizar saldo das contas]
+CREATE OR REPLACE FUNCTION atualizar_saldo_conta(conta_uuid UUID)
+RETURNS DECIMAL(15,2) AS $$
+DECLARE
+    novo_saldo DECIMAL(15,2);
+    saldo_inicial DECIMAL(15,2);
+BEGIN
+    -- Buscar saldo inicial
+    SELECT c.saldo_inicial INTO saldo_inicial 
+    FROM contas c WHERE c.id = conta_uuid;
+    
+    -- Calcular novo saldo
+    SELECT saldo_inicial + COALESCE(SUM(
+        CASE 
+            WHEN t.tipo = 'receita' THEN t.valor
+            WHEN t.tipo = 'despesa' THEN -t.valor
+            WHEN t.tipo = 'transferencia' AND t.conta_id = conta_uuid THEN -t.valor
+            WHEN t.tipo = 'transferencia' AND t.conta_destino_id = conta_uuid THEN t.valor
+            ELSE 0
+        END
+    ), 0) INTO novo_saldo
+    FROM transacoes t
+    WHERE (t.conta_id = conta_uuid OR t.conta_destino_id = conta_uuid)
+      AND t.status = 'confirmada';
+    
+    -- Atualizar saldo na conta
+    UPDATE contas SET 
+        saldo_atual = novo_saldo,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = conta_uuid;
+    
+    RETURN novo_saldo;
+END;
+$$ LANGUAGE plpgsql;
+\end{lstlisting}

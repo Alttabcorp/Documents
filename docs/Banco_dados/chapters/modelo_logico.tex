@@ -1,0 +1,210 @@
+\section{Modelo Logico}
+
+\subsection{Estrutura das Tabelas}
+
+\subsubsection{Tabela: usuarios}
+\begin{lstlisting}[caption=Estrutura da tabela usuarios]
+CREATE TABLE usuarios (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome VARCHAR(100) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    senha_hash VARCHAR(255) NOT NULL,
+    telefone VARCHAR(20),
+    data_nascimento DATE,
+    cpf VARCHAR(14) UNIQUE,
+    ativo BOOLEAN DEFAULT true,
+    email_verificado BOOLEAN DEFAULT false,
+    data_ultimo_acesso TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+\end{lstlisting}
+
+\subsubsection{Tabela: grupos}
+\begin{lstlisting}[caption=Estrutura da tabela grupos]
+CREATE TABLE grupos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome VARCHAR(100) NOT NULL,
+    descricao TEXT,
+    modelo_organizacao VARCHAR(20) NOT NULL DEFAULT 'individual',
+    configuracao JSONB,
+    ativo BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_grupos_modelo CHECK (
+        modelo_organizacao IN ('individual', 'renda_conjunta', 'splitwise', 'fundo_comum')
+    )
+);
+\end{lstlisting}
+
+\subsubsection{Tabela: usuario\_grupos}
+\begin{lstlisting}[caption=Estrutura da tabela usuario_grupos (relacionamento N:M)]
+CREATE TABLE usuario_grupos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    grupo_id UUID NOT NULL REFERENCES grupos(id) ON DELETE CASCADE,
+    papel VARCHAR(20) NOT NULL DEFAULT 'membro',
+    permissoes JSONB,
+    ativo BOOLEAN DEFAULT true,
+    data_entrada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    data_saida TIMESTAMP,
+    
+    CONSTRAINT chk_usuario_grupos_papel CHECK (
+        papel IN ('administrador', 'membro', 'dependente', 'convidado')
+    ),
+    UNIQUE($usuario\_id$, $grupo\_id$)
+);
+\end{lstlisting}
+
+\subsubsection{Tabela: contas}
+\begin{lstlisting}[caption=Estrutura da tabela contas]
+CREATE TABLE contas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome VARCHAR(100) NOT NULL,
+    descricao TEXT,
+    tipo VARCHAR(30) NOT NULL,
+    subtipo VARCHAR(30),
+    moeda VARCHAR(3) DEFAULT 'BRL',
+    saldo_inicial DECIMAL(15,2) DEFAULT 0.00,
+    saldo_atual DECIMAL(15,2) DEFAULT 0.00,
+    limite_credito DECIMAL(15,2),
+    banco VARCHAR(100),
+    agencia VARCHAR(10),
+    numero_conta VARCHAR(20),
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    grupo_id UUID REFERENCES grupos(id) ON DELETE SET NULL,
+    compartilhada BOOLEAN DEFAULT false,
+    ativa BOOLEAN DEFAULT true,
+    cor VARCHAR(7) DEFAULT '#007bff',
+    icone VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_contas_tipo CHECK (
+        tipo IN ('corrente', 'poupanca', 'investimento', 'cartao_credito', 
+                'cartao_debito', 'dinheiro', 'outros')
+    ),
+    CONSTRAINT chk_contas_saldo CHECK (saldo_atual >= 0 OR tipo = 'cartao_credito')
+);
+\end{lstlisting}
+
+\subsubsection{Tabela: categorias}
+\begin{lstlisting}[caption=Estrutura da tabela categorias]
+CREATE TABLE categorias (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome VARCHAR(100) NOT NULL,
+    descricao TEXT,
+    tipo VARCHAR(20) NOT NULL,
+    cor VARCHAR(7) DEFAULT '#6c757d',
+    icone VARCHAR(50),
+    categoria_pai_id UUID REFERENCES categorias(id) ON DELETE SET NULL,
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    grupo_id UUID REFERENCES grupos(id) ON DELETE CASCADE,
+    sistema BOOLEAN DEFAULT false,
+    ativa BOOLEAN DEFAULT true,
+    ordem INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_categorias_tipo CHECK (
+        tipo IN ('receita', 'despesa', 'transferencia')
+    ),
+    CONSTRAINT chk_categorias_escopo CHECK (
+        (usuario_id IS NOT NULL AND grupo_id IS NULL) OR
+        (usuario_id IS NULL AND grupo_id IS NOT NULL) OR
+        (usuario_id IS NULL AND grupo_id IS NULL AND sistema = true)
+    )
+);
+\end{lstlisting}
+
+\subsubsection{Tabela: transacoes}
+\begin{lstlisting}[caption=Estrutura da tabela transacoes]
+CREATE TABLE transacoes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    descricao VARCHAR(255) NOT NULL,
+    valor DECIMAL(15,2) NOT NULL,
+    tipo VARCHAR(20) NOT NULL,
+    data_transacao DATE NOT NULL,
+    data_vencimento DATE,
+    conta_id UUID NOT NULL REFERENCES contas(id) ON DELETE RESTRICT,
+    categoria_id UUID NOT NULL REFERENCES categorias(id) ON DELETE RESTRICT,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    grupo_id UUID REFERENCES grupos(id) ON DELETE SET NULL,
+    conta_destino_id UUID REFERENCES contas(id) ON DELETE SET NULL,
+    status VARCHAR(20) DEFAULT 'confirmada',
+    observacoes TEXT,
+    tags TEXT[],
+    anexos JSONB,
+    recorrencia JSONB,
+    divisao_splitwise JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_transacoes_tipo CHECK (
+        tipo IN ('receita', 'despesa', 'transferencia')
+    ),
+    CONSTRAINT chk_transacoes_status CHECK (
+        status IN ('pendente', 'confirmada', 'cancelada', 'agendada')
+    ),
+    CONSTRAINT chk_transacoes_valor CHECK (valor != 0),
+    CONSTRAINT chk_transacoes_transferencia CHECK (
+        (tipo = 'transferencia' AND conta_destino_id IS NOT NULL) OR
+        (tipo != 'transferencia' AND conta_destino_id IS NULL)
+    )
+);
+\end{lstlisting}
+
+\subsection{Indices Principais}
+
+\begin{lstlisting}[caption=Indices para otimizacao de performance]
+-- Indices para consultas frequentes
+CREATE INDEX idx_usuarios_email ON usuarios(email);
+CREATE INDEX idx_usuarios_ativo ON usuarios(ativo);
+
+CREATE INDEX idx_contas_usuario ON contas(usuario_id);
+CREATE INDEX idx_contas_grupo ON contas(grupo_id);
+CREATE INDEX idx_contas_ativa ON contas(ativa);
+
+CREATE INDEX idx_transacoes_conta ON transacoes(conta_id);
+CREATE INDEX idx_transacoes_categoria ON transacoes(categoria_id);
+CREATE INDEX idx_transacoes_usuario ON transacoes(usuario_id);
+CREATE INDEX idx_transacoes_data ON transacoes(data_transacao);
+CREATE INDEX idx_transacoes_status ON transacoes(status);
+
+-- Indices compostos para consultas complexas
+CREATE INDEX idx_transacoes_usuario_data ON transacoes(usuario_id, data_transacao DESC);
+CREATE INDEX idx_transacoes_conta_data ON transacoes(conta_id, data_transacao DESC);
+CREATE INDEX idx_contas_usuario_ativa ON contas(usuario_id, ativa);
+\end{lstlisting}
+
+\subsection{Constraints e Validacoes}
+
+\begin{lstlisting}[caption=Constraints adicionais de integridade]
+-- Validacao de email
+ALTER TABLE usuarios ADD CONSTRAINT chk_usuarios_email 
+    CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
+
+-- Validacao de CPF (formato)
+ALTER TABLE usuarios ADD CONSTRAINT chk_usuarios_cpf 
+    CHECK (cpf IS NULL OR cpf ~ '^\d{3}\.\d{3}\.\d{3}-\d{2}$');
+
+-- Validacao de saldo para cartao de credito
+ALTER TABLE contas ADD CONSTRAINT chk_contas_limite_credito 
+    CHECK (limite_credito IS NULL OR limite_credito >= 0);
+
+-- Validacao de hierarquia de categorias (evitar loop)
+CREATE OR REPLACE FUNCTION check_categoria_hierarchy() RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.categoria_pai_id IS NOT NULL AND 
+       NEW.categoria_pai_id = NEW.id THEN
+        RAISE EXCEPTION 'Categoria nao pode ser pai de si mesma';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_check_categoria_hierarchy
+    BEFORE INSERT OR UPDATE ON categorias
+    FOR EACH ROW EXECUTE FUNCTION check_categoria_hierarchy();
+\end{lstlisting}

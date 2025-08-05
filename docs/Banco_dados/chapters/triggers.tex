@@ -1,0 +1,144 @@
+\section{Triggers}
+
+\subsection{Triggers de Auditoria}
+
+\subsubsection{Trigger de Log Automatico}
+
+\begin{lstlisting}[caption=Funcao generica de auditoria]
+CREATE OR REPLACE FUNCTION audit_trigger()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        INSERT INTO audit.audit_logs (tabela, operacao, usuario_id, dados_antigos)
+        VALUES (TG_TABLE_NAME, TG_OP, OLD.usuario_id, row_to_json(OLD));
+        RETURN OLD;
+    ELSIF TG_OP = 'UPDATE' THEN
+        INSERT INTO audit.audit_logs (tabela, operacao, usuario_id, dados_antigos, dados_novos)
+        VALUES (TG_TABLE_NAME, TG_OP, NEW.usuario_id, row_to_json(OLD), row_to_json(NEW));
+        RETURN NEW;
+    ELSIF TG_OP = 'INSERT' THEN
+        INSERT INTO audit.audit_logs (tabela, operacao, usuario_id, dados_novos)
+        VALUES (TG_TABLE_NAME, TG_OP, NEW.usuario_id, row_to_json(NEW));
+        RETURN NEW;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+\end{lstlisting}
+
+\subsubsection{Aplicacao dos Triggers}
+
+\begin{lstlisting}[caption=Criacao dos triggers de auditoria]
+-- Trigger para transacoes
+CREATE TRIGGER trg_audit_transacoes
+    AFTER INSERT OR UPDATE OR DELETE ON transacoes
+    FOR EACH ROW EXECUTE FUNCTION audit_trigger();
+
+-- Trigger para contas
+CREATE TRIGGER trg_audit_contas
+    AFTER INSERT OR UPDATE OR DELETE ON contas
+    FOR EACH ROW EXECUTE FUNCTION audit_trigger();
+
+-- Trigger para usuarios
+CREATE TRIGGER trg_audit_usuarios
+    AFTER INSERT OR UPDATE OR DELETE ON usuarios
+    FOR EACH ROW EXECUTE FUNCTION audit_trigger();
+\end{lstlisting}
+
+\subsection{Triggers de Negocio}
+
+\subsubsection{Atualizacao Automatica de Saldos}
+
+\begin{lstlisting}[caption=Trigger para atualizar saldo automaticamente]
+CREATE OR REPLACE FUNCTION atualizar_saldo_trigger()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+        -- Atualizar saldo da conta origem
+        PERFORM atualizar_saldo_conta(NEW.conta_id);
+        
+        -- Se for transferencia, atualizar conta destino
+        IF NEW.tipo = 'transferencia' AND NEW.conta_destino_id IS NOT NULL THEN
+            PERFORM atualizar_saldo_conta(NEW.conta_destino_id);
+        END IF;
+        
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        -- Atualizar saldo da conta origem
+        PERFORM atualizar_saldo_conta(OLD.conta_id);
+        
+        -- Se for transferencia, atualizar conta destino
+        IF OLD.tipo = 'transferencia' AND OLD.conta_destino_id IS NOT NULL THEN
+            PERFORM atualizar_saldo_conta(OLD.conta_destino_id);
+        END IF;
+        
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Aplicar trigger
+CREATE TRIGGER trg_atualizar_saldo
+    AFTER INSERT OR UPDATE OR DELETE ON transacoes
+    FOR EACH ROW EXECUTE FUNCTION atualizar_saldo_trigger();
+\end{lstlisting}
+
+\subsubsection{Validacao de Integridade}
+
+\begin{lstlisting}[caption=Trigger para validacoes de integridade]
+CREATE OR REPLACE FUNCTION validar_integridade_trigger()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Validar que usuario pertence ao grupo da transacao
+    IF NEW.grupo_id IS NOT NULL THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM usuario_grupos 
+            WHERE usuario_id = NEW.usuario_id 
+              AND grupo_id = NEW.grupo_id 
+              AND ativo = true
+        ) THEN
+            RAISE EXCEPTION 'Usuario nao pertence ao grupo especificado';
+        END IF;
+    END IF;
+    
+    -- Validar que conta pertence ao usuario ou grupo
+    IF NOT EXISTS (
+        SELECT 1 FROM contas c
+        WHERE c.id = NEW.conta_id
+          AND (c.usuario_id = NEW.usuario_id OR 
+               (c.compartilhada = true AND c.grupo_id = NEW.grupo_id))
+    ) THEN
+        RAISE EXCEPTION 'Usuario nao tem acesso a conta especificada';
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Aplicar trigger
+CREATE TRIGGER trg_validar_integridade
+    BEFORE INSERT OR UPDATE ON transacoes
+    FOR EACH ROW EXECUTE FUNCTION validar_integridade_trigger();
+\end{lstlisting}
+
+\subsection{Triggers de Performance}
+
+\subsubsection{Atualizacao de Views Materializadas}
+
+\begin{lstlisting}[caption=Trigger para refresh de views materializadas]
+CREATE OR REPLACE FUNCTION refresh_materialized_views()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Refresh da view de resumo financeiro (em background)
+    PERFORM pg_notify('refresh_mv', 'resumo_financeiro_mensal');
+    
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Aplicar trigger
+CREATE TRIGGER trg_refresh_mv_transacoes
+    AFTER INSERT OR UPDATE OR DELETE ON transacoes
+    FOR EACH STATEMENT EXECUTE FUNCTION refresh_materialized_views();
+\end{lstlisting}

@@ -1,0 +1,157 @@
+\section{Escopo}
+
+\subsection{Escopo do Produto}
+
+O projeto FinOps abrangera o desenvolvimento de uma aplicacao para **substituir planilhas Excel** na organizacao financeira, com as seguintes caracteristicas:
+
+\subsubsection{Caracteristicas Principais}
+\begin{itemize}
+    \item \textbf{Substituto Digital do Excel}: Interface moderna que mantem a simplicidade das planilhas
+    \item \textbf{Entrada Manual de Dados}: Usuario insere todas as informacoes manualmente 
+    \item \textbf{Sem Integracoes Externas}: Nao se conecta a bancos, corretoras ou APIs
+    \item \textbf{Indicacoes Percentuais}: Sugestoes de alocacao para poupanca e investimentos
+    \item \textbf{Organizacao Visual}: Graficos e relatorios automaticos baseados nos dados inseridos
+\end{itemize}
+
+\subsubsection{Plataformas Incluidas}
+\begin{itemize}
+    \item \textbf{Aplicacao Web}: Interface responsiva acessivel via navegador
+    \item \textbf{Aplicacao Mobile}: App nativo para Android e iOS  
+    \item \textbf{API Backend}: Servicos para sincronizacao entre dispositivos
+    \item \textbf{Banco de Dados}: Sistema de armazenamento local dos dados do usuario
+\end{itemize}
+
+\subsubsection{Modulos Funcionais}
+
+\paragraph{Modulo de Modelos de Organizacao}
+\begin{itemize}
+    \item Selecao do tipo de organizacao financeira
+    \item Configuracao de modelos (Renda Conjunta, Divisao Proporcional, Individual)
+    \item Simulacao de cenarios de divisao
+    \item Migracao entre modelos
+    \item Onboarding personalizado por modelo
+\end{itemize}
+
+\paragraph{Modulo de Receitas}
+\begin{itemize}
+    \item Cadastro manual de fontes de renda multiplas (individuais ou conjuntas)
+    \item Categorizacao de receitas (salario, freelance, investimentos, etc.)
+    \item Controle de receitas recorrentes e esporadicas
+    \item Projecoes de receitas futuras baseadas no historico
+    \item Vinculacao de receitas por pessoa (quando aplicavel)
+\end{itemize}
+
+\paragraph{Modulo de Gastos Fixos}
+\begin{itemize}
+    \item Cadastro de despesas mensais obrigatorias
+    \item Categorizacao (moradia, transporte, alimentacao, etc.)
+    \item Controle de vencimentos e lembretes
+    \item Historico de variacoes nos valores
+    \item Divisao de responsabilidades por pessoa (quando aplicavel)
+    \item Calculo de divisao proporcional ou igualitaria
+\end{itemize}
+
+\paragraph{Modulo de Custos Variaveis}
+\begin{itemize}
+    \item Registro de gastos nao-fixos (individuais ou compartilhados)
+    \item Definicao de orcamentos por categoria e por pessoa
+    \item Acompanhamento de gastos em tempo real
+    \item Alertas de limite de orcamento
+    \item Relatorios de gastos por pessoa/categoria
+\end{itemize}
+
+\paragraph{Modulo de Poupanca e Reservas}
+\begin{itemize}
+    \item \textbf{Indicacao percentual} de 15-20\% para poupanca e 10-15\% para reserva
+    \item Definicao manual de metas de poupanca com objetivos especificos
+    \item Controle manual de valores da reserva de emergencia
+    \item Acompanhamento de progresso baseado em valores inseridos pelo usuario
+    \item Simulacoes simples de tempo para atingir metas (sem rendimentos automaticos)
+    \item \textbf{Diferenciacao educativa}: Poupanca vs Reserva de Emergencia
+\end{itemize}
+
+\paragraph{Modulo de Investimentos}
+\begin{itemize}
+    \item \textbf{Indicacao percentual} de 10-25\% da renda para investimentos
+    \item Registro manual de aportes realizados por categoria
+    \item Categorizacao educativa por tipo de investimento (Renda Fixa, Variavel, etc.)
+    \item \textbf{Sem acompanhamento automatico} de rentabilidade ou cotacoes
+    \item \textbf{Sem integracao} com corretoras ou APIs financeiras
+    \item Controle pessoal e manual de valores investidos
+    \item Educacao financeira sobre tipos e riscos de investimentos
+\end{itemize}
+
+\paragraph{Modulo de Gastos Livres}
+\begin{itemize}
+    \item Calculo automatico do valor disponivel
+    \item Adaptacao aos diferentes modelos de organizacao:
+    \begin{itemize}
+        \item Renda Conjunta: Divisao 50/50 ou percentual customizado
+        \item Divisao Proporcional: Valor individual apos responsabilidades
+        \item Individual: 100\% do valor pessoal apos compromissos
+    \end{itemize}
+    \item Controle individual de gastos
+    \item Historico de utilizacao
+    \item Transferencias entre pessoas (quando aplicavel)
+\end{itemize}
+
+\paragraph{Modulo de Simulacao e Comparacao}
+\begin{itemize}
+    \item Simulacao de diferentes modelos de organizacao
+    \item Comparacao de cenarios financeiros
+    \item Analise de impacto de mudancas
+    \item Recomendacoes baseadas no perfil do usuario
+    \item Calculadora de divisao justa para gastos
+\end{itemize}
+
+\subsection{Escopo Tecnico}
+
+\subsubsection{Funcionalidades Incluidas}
+\begin{itemize}
+    \item Sistema de autenticacao e autorizacao
+    \item Dashboard principal com visao geral
+    \item Relatorios e graficos interativos
+    \item Sistema de notificacoes
+    \item Backup e sincronizacao automatica
+    \item Export de dados (PDF, Excel)
+    \item Configuracoes personalizaveis
+\end{itemize}
+
+\subsubsection{Integracoes}
+\begin{itemize}
+    \item \textbf{Nenhuma integracao externa} na versao inicial
+    \item Sistema funciona 100\% com entrada manual de dados
+    \item Sincronizacao apenas entre dispositivos do usuario
+    \item Possiveis integracoes futuras (apenas indicativo):
+    \begin{itemize}
+        \item APIs de bancos (Open Banking) - \textit{versao futura}
+        \item Plataformas de investimento - \textit{versao futura}
+    \end{itemize}
+\end{itemize}
+
+\subsection{Fora do Escopo}
+
+\subsubsection{Funcionalidades Nao Incluidas}
+\begin{itemize}
+    \item \textbf{Conexao com bancos ou corretoras}
+    \item \textbf{Acompanhamento automatico} de investimentos ou rendimentos
+    \item \textbf{Cotacoes em tempo real} de acoes, fundos, etc.
+    \item \textbf{Execucao de transacoes} financeiras
+    \item \textbf{Importacao automatica} de extratos bancarios
+    \item Consultoria financeira automatizada
+    \item Gestao de impostos e declaracoes
+    \item Funcionalidades de emprestimos e financiamentos
+    \item Gestao empresarial ou comercial
+    \item Alertas automaticos de vencimentos bancarios
+\end{itemize}
+
+\subsubsection{Limitacoes Intencionais}
+\begin{itemize}
+    \item \textbf{Entrada manual obrigatoria}: Usuario insere todos os dados
+    \item \textbf{Nao e um home broker}: Nao executa operacoes financeiras
+    \item \textbf{Nao e um agregador}: Nao conecta com contas bancarias
+    \item \textbf{Foco organizacional}: Substitui planilhas, nao automatiza transacoes
+    \item Suporte inicial apenas para moeda brasileira (Real)
+    \item Maximo de 2 usuarios por conta (casal)
+    \item Historico limitado a 5 anos de dados
+\end{itemize}

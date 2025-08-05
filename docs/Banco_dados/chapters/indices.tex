@@ -1,0 +1,215 @@
+\section{Indices e Otimizacao}
+
+\subsection{Estrategia de Indexacao}
+
+\subsubsection{Indices Primarios}
+
+\begin{lstlisting}[caption=Indices essenciais para performance]
+-- Indices para consultas frequentes por usuario
+CREATE INDEX idx_transacoes_usuario_data_status 
+    ON transacoes(usuario_id, data_transacao DESC, status);
+
+CREATE INDEX idx_contas_usuario_ativa_tipo 
+    ON contas(usuario_id, ativa, tipo);
+
+-- Indices para consultas de grupo
+CREATE INDEX idx_transacoes_grupo_data 
+    ON transacoes(grupo_id, data_transacao DESC) 
+    WHERE grupo_id IS NOT NULL;
+
+-- Indices para relatorios
+CREATE INDEX idx_transacoes_categoria_data 
+    ON transacoes(categoria_id, data_transacao DESC, status);
+
+-- Indices para busca textual
+CREATE INDEX idx_transacoes_descricao_gin 
+    ON transacoes USING gin(to_tsvector('portuguese', descricao));
+\end{lstlisting}
+
+\subsubsection{Indices Condicionais}
+
+\begin{lstlisting}[caption=Indices otimizados com condicoes]
+-- Apenas transacoes ativas
+CREATE INDEX idx_transacoes_ativas 
+    ON transacoes(usuario_id, data_transacao DESC) 
+    WHERE status = 'confirmada';
+
+-- Apenas contas ativas
+CREATE INDEX idx_contas_ativas_saldo 
+    ON contas(usuario_id, saldo_atual) 
+    WHERE ativa = true;
+
+-- Apenas usuarios verificados
+CREATE INDEX idx_usuarios_verificados 
+    ON usuarios(email) 
+    WHERE email_verificado = true AND ativo = true;
+
+-- Recorrencias ativas
+CREATE INDEX idx_recorrencias_proxima 
+    ON recorrencias(proxima_execucao) 
+    WHERE ativa = true;
+\end{lstlisting}
+
+\subsection{Monitoramento de Performance}
+
+\subsubsection{Views de Monitoramento}
+
+\begin{lstlisting}[caption=Views para analise de performance]
+-- View para consultas lentas
+CREATE VIEW slow_queries AS
+SELECT 
+    query,
+    calls,
+    total_time,
+    mean_time,
+    rows,
+    100.0 * shared_blks_hit / nullif(shared_blks_hit + shared_blks_read, 0) AS hit_percent
+FROM pg_stat_statements
+WHERE calls > 100
+ORDER BY mean_time DESC;
+
+-- View para uso de indices
+CREATE VIEW index_usage AS
+SELECT 
+    schemaname,
+    tablename,
+    indexname,
+    idx_tup_read,
+    idx_tup_fetch,
+    idx_scan,
+    pg_size_pretty(pg_relation_size(indexrelid)) as size
+FROM pg_stat_user_indexes
+ORDER BY idx_scan DESC;
+
+-- View para tabelas grandes
+CREATE VIEW table_sizes AS
+SELECT 
+    schemaname,
+    tablename,
+    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size,
+    pg_total_relation_size(schemaname||'.'||tablename) as bytes
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY bytes DESC;
+\end{lstlisting}
+
+\subsection{Otimizacoes Avancadas}
+
+\subsubsection{Particao de Tabelas}
+
+\begin{lstlisting}[caption=Estrategia de particao para transacoes]
+-- Particionar transacoes por ano para melhor performance
+CREATE TABLE transacoes_2024 PARTITION OF transacoes 
+    FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
+
+CREATE TABLE transacoes_2025 PARTITION OF transacoes 
+    FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
+
+-- Funcao para criar particoes automaticamente
+CREATE OR REPLACE FUNCTION criar_particao_mensal()
+RETURNS void AS $$
+DECLARE
+    ano INTEGER := EXTRACT(YEAR FROM CURRENT_DATE);
+    mes INTEGER := EXTRACT(MONTH FROM CURRENT_DATE);
+    data_inicio DATE;
+    data_fim DATE;
+    nome_tabela TEXT;
+BEGIN
+    data_inicio := DATE_TRUNC('month', CURRENT_DATE);
+    data_fim := data_inicio + INTERVAL '1 month';
+    nome_tabela := 'transacoes_' || ano || '_' || LPAD(mes::TEXT, 2, '0');
+    
+    EXECUTE format('CREATE TABLE IF NOT EXISTS %I PARTITION OF transacoes 
+                    FOR VALUES FROM (%L) TO (%L)',
+                   nome_tabela, data_inicio, data_fim);
+END;
+$$ LANGUAGE plpgsql;
+\end{lstlisting}
+
+\subsubsection{Cache e Buffers}
+
+\begin{lstlisting}[caption=Configuracoes recomendadas para PostgreSQL]
+-- Configuracoes no postgresql.conf
+-- shared_buffers = 256MB (25% da RAM)
+-- effective_cache_size = 1GB (75% da RAM)
+-- work_mem = 4MB
+-- maintenance_work_mem = 64MB
+-- checkpoint_completion_target = 0.9
+-- wal_buffers = 16MB
+-- default_statistics_target = 100
+
+-- Query para verificar configuracoes atuais
+SELECT name, setting, unit, context 
+FROM pg_settings 
+WHERE name IN (
+    'shared_buffers',
+    'effective_cache_size', 
+    'work_mem',
+    'maintenance_work_mem'
+);
+\end{lstlisting}
+
+\subsection{Analise e Manutencao}
+
+\subsubsection{Scripts de Analise}
+
+\begin{lstlisting}[caption=Scripts para analise de performance]
+-- Atualizar estatisticas
+ANALYZE;
+
+-- Verificar bloat em tabelas
+SELECT 
+    tablename,
+    pg_size_pretty(pg_total_relation_size(tablename::regclass)) as size,
+    round(100 * (pg_total_relation_size(tablename::regclass) - 
+                 pg_relation_size(tablename::regclass))::numeric / 
+                 pg_total_relation_size(tablename::regclass), 2) as bloat_pct
+FROM pg_tables 
+WHERE schemaname = 'public'
+  AND pg_total_relation_size(tablename::regclass) > 1000000
+ORDER BY pg_total_relation_size(tablename::regclass) DESC;
+
+-- Verificar indices nao utilizados
+SELECT 
+    schemaname,
+    tablename,
+    indexname,
+    idx_scan,
+    pg_size_pretty(pg_relation_size(indexname::regclass)) as size
+FROM pg_stat_user_indexes
+WHERE idx_scan = 0
+  AND schemaname = 'public'
+ORDER BY pg_relation_size(indexname::regclass) DESC;
+\end{lstlisting}
+
+\subsubsection{Manutencao Automatica}
+
+\begin{lstlisting}[caption=Funcao para manutencao automatica]
+CREATE OR REPLACE FUNCTION manutencao_automatica()
+RETURNS void AS $$
+BEGIN
+    -- Vacuum analyze em tabelas principais
+    VACUUM ANALYZE usuarios;
+    VACUUM ANALYZE grupos;
+    VACUUM ANALYZE contas;
+    VACUUM ANALYZE categorias;
+    VACUUM ANALYZE transacoes;
+    
+    -- Refresh views materializadas
+    REFRESH MATERIALIZED VIEW CONCURRENTLY resumo_financeiro_mensal;
+    
+    -- Limpar logs antigos (>90 dias)
+    DELETE FROM audit.audit_logs 
+    WHERE timestamp_operacao < CURRENT_DATE - INTERVAL '90 days';
+    
+    -- Limpar sessoes expiradas
+    DELETE FROM sessoes 
+    WHERE data_expiracao < CURRENT_TIMESTAMP;
+    
+    -- Log da manutencao
+    INSERT INTO audit.audit_logs (tabela, operacao, dados_novos)
+    VALUES ('sistema', 'MAINTENANCE', 
+            jsonb_build_object('timestamp', CURRENT_TIMESTAMP, 'status', 'concluida'));
+END;
+$$ LANGUAGE plpgsql;
+\end{lstlisting}

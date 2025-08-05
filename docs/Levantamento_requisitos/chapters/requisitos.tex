@@ -1,0 +1,144 @@
+\section{Requisitos}
+
+\subsection{Requisitos Funcionais}
+
+\subsubsection{RF001 - Gestao de Usuarios e Modelos Organizacionais}
+\begin{itemize}
+    \item O sistema deve permitir cadastro de usuarios
+    \item O sistema deve permitir login/logout seguro
+    \item O sistema deve suportar multiplos usuarios por conta (casais, republicas)
+    \item O sistema deve permitir selecao entre modelos organizacionais:
+    \begin{itemize}
+        \item Renda Conjunta (divisao igualitaria ou percentual)
+        \item Divisao Proporcional (baseada na renda individual)
+        \item Individual (controle financeiro pessoal)
+    \end{itemize}
+    \item O sistema deve permitir mudanca de modelo organizacional
+    \item O sistema deve permitir recuperacao de senha
+    \item O sistema deve manter perfis de usuario individuais
+\end{itemize}
+
+\subsubsection{RF002 - Gestao de Receitas}
+\begin{itemize}
+    \item O sistema deve permitir cadastro de receitas mensais
+    \item O sistema deve categorizar tipos de receita
+    \item O sistema deve calcular total de receitas automaticamente
+    \item O sistema deve permitir edicao e exclusao de receitas
+    \item O sistema deve manter historico de receitas
+\end{itemize}
+
+\subsubsection{RF003 - Gestao de Gastos Fixos}
+\begin{itemize}
+    \item O sistema deve permitir cadastro de gastos fixos mensais
+    \item O sistema deve categorizar gastos por tipo
+    \item O sistema deve calcular total de gastos fixos
+    \item O sistema deve permitir definir datas de vencimento
+    \item O sistema deve enviar lembretes de pagamento
+\end{itemize}
+
+\subsubsection{RF004 - Gestao de Custos Variaveis}
+\begin{itemize}
+    \item O sistema deve permitir definir orcamento para custos variaveis
+    \item O sistema deve registrar gastos variaveis por categoria
+    \item O sistema deve alertar sobre extrapolacao de orcamento
+    \item O sistema deve calcular gastos restantes por categoria
+\end{itemize}
+
+\subsubsection{RF005 - Gestao de Poupanca e Reservas}
+\begin{itemize}
+    \item O sistema deve permitir definir valor mensal para poupanca
+    \item O sistema deve permitir definir meta de reserva de emergencia
+    \item O sistema deve calcular progresso das metas
+    \item O sistema deve permitir registrar aportes extras
+\end{itemize}
+
+\subsubsection{RF006 - Gestao de Investimentos}
+\begin{itemize}
+    \item O sistema deve permitir definir valor mensal para investimentos
+    \item O sistema deve categorizar tipos de investimento
+    \item O sistema deve registrar aportes realizados
+    \item O sistema deve acompanhar performance basica
+\end{itemize}
+
+\subsubsection{RF007 - Calculo de Gastos Livres Adaptativos}
+\begin{itemize}
+    \item O sistema deve calcular valor disponivel apos todas as deducoes
+    \item O sistema deve aplicar divisao conforme modelo organizacional:
+    \begin{itemize}
+        \item Renda Conjunta: Divisao igualitaria ou percentual customizada
+        \item Divisao Proporcional: Valor proporcional à contribuicao
+        \item Individual: 100\% do valor pessoal disponivel
+    \end{itemize}
+    \item O sistema deve permitir registro de gastos individuais
+    \item O sistema deve permitir transferencias entre usuarios
+    \item O sistema deve mostrar saldo restante por pessoa
+    \item O sistema deve calcular divisao justa para gastos compartilhados
+\end{itemize}
+
+\subsubsection{RF008 - Simulacao e Comparacao de Modelos}
+\begin{itemize}
+    \item O sistema deve permitir simulacao de diferentes modelos organizacionais
+    \item O sistema deve comparar cenarios financeiros lado a lado
+    \item O sistema deve calcular impacto financeiro de mudancas
+    \item O sistema deve gerar recomendacoes baseadas no perfil
+    \item O sistema deve permitir teste de "e se" com diferentes parametros
+\end{itemize}
+
+\subsubsection{RF009 - Relatorios e Dashboards}
+\begin{itemize}
+    \item O sistema deve gerar dashboard principal com visao geral
+    \item O sistema deve gerar relatorios mensais detalhados por pessoa
+    \item O sistema deve apresentar graficos de evolucao financeira
+    \item O sistema deve mostrar analise comparativa entre modelos
+    \item O sistema deve permitir export de relatorios
+\end{itemize}
+
+\subsection{Requisitos Nao Funcionais}
+
+\subsubsection{RNF001 - Performance}
+\begin{itemize}
+    \item O sistema deve responder em ate 3 segundos para operacoes normais
+    \item O sistema deve suportar ate 1000 usuarios simultaneos
+    \item O sistema deve processar calculos financeiros em tempo real
+\end{itemize}
+
+\subsubsection{RNF002 - Seguranca}
+\begin{itemize}
+    \item O sistema deve criptografar dados sensiveis
+    \item O sistema deve implementar autenticacao segura (JWT)
+    \item O sistema deve registrar logs de auditoria
+    \item O sistema deve implementar HTTPS obrigatorio
+\end{itemize}
+
+\subsubsection{RNF003 - Usabilidade}
+\begin{itemize}
+    \item O sistema deve ter interface intuitiva e responsiva
+    \item O sistema deve funcionar em dispositivos moveis
+    \item O sistema deve ter tempo de aprendizado maximo de 30 minutos
+    \item O sistema deve seguir padroes de acessibilidade WCAG 2.1
+\end{itemize}
+
+\subsubsection{RNF004 - Confiabilidade}
+\begin{itemize}
+    \item O sistema deve ter disponibilidade de 99.5\%
+    \item O sistema deve realizar backup automatico diario
+    \item O sistema deve se recuperar de falhas em ate 15 minutos
+    \item O sistema deve manter integridade dos dados financeiros
+\end{itemize}
+
+\subsubsection{RNF005 - Escalabilidade}
+\begin{itemize}
+    \item O sistema deve suportar crescimento de 100\% de usuarios/ano
+    \item O sistema deve permitir adicionar novos modulos facilmente
+    \item O sistema deve ter arquitetura modular e desacoplada
+\end{itemize}
+
+\subsection{Requisitos de Interface}
+
+\begin{itemize}
+    \item Interface web responsiva compativel com Chrome, Firefox, Safari, Edge
+    \item Aplicativo mobile para Android 8+ e iOS 12+
+    \item Design consistente entre plataformas
+    \item Suporte a temas claro e escuro
+    \item Navegacao intuitiva com maximo 3 cliques para qualquer funcionalidade
+\end{itemize}

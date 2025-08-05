@@ -1,0 +1,271 @@
+\section{Riscos e Mitigacoes}
+
+\subsection{Analise de Riscos}
+
+\subsubsection{Matriz de Probabilidade e Impacto}
+
+\begin{longtable}{|p{4cm}|p{2cm}|p{2cm}|p{5cm}|}
+\hline
+\textbf{Risco} & \textbf{Prob.} & \textbf{Impacto} & \textbf{Descricao} \\
+\hline
+\endhead
+
+Seguranca de Dados & Media & Alto & Vazamento de informacoes financeiras sensiveis \\
+\hline
+
+Atraso no Desenvolvimento & Alta & Medio & Cronograma nao cumprido por complexidade tecnica \\
+\hline
+
+Problemas de Performance & Media & Medio & Sistema lento com muitos usuarios \\
+\hline
+
+Rejeicao nas App Stores & Baixa & Alto & Apps rejeitados por politicas das stores \\
+\hline
+
+Mudancas Regulatorias & Baixa & Alto & Novas leis sobre dados financeiros \\
+\hline
+
+Concorrencia & Alta & Medio & Lancamento de produtos similares \\
+\hline
+
+Problemas de UX & Media & Alto & Interface confusa ou dificil de usar \\
+\hline
+
+Falhas de Infraestrutura & Baixa & Alto & Indisponibilidade do sistema \\
+\hline
+
+\end{longtable}
+
+\subsection{Riscos Tecnicos}
+
+\subsubsection{RT001 - Seguranca de Dados Financeiros}
+
+\paragraph{Descricao}
+Dados financeiros sao extremamente sensiveis e qualquer vazamento pode causar graves problemas legais e de reputacao.
+
+\paragraph{Probabilidade}: Media (30\%)
+\paragraph{Impacto}: Alto
+
+\paragraph{Fatores de Risco}
+\begin{itemize}
+    \item Ataques ciberneticos direcionados
+    \item Vulnerabilidades no codigo
+    \item Configuracoes incorretas de seguranca
+    \item Acesso nao autorizado por funcionarios
+\end{itemize}
+
+\paragraph{Estrategias de Mitigacao}
+\begin{itemize}
+    \item \textbf{Preventivas}:
+    \begin{itemize}
+        \item Criptografia AES-256 para dados sensiveis
+        \item HTTPS obrigatorio em todas as comunicacoes
+        \item Autenticacao multi-fator
+        \item Auditoria de codigo por especialistas em seguranca
+        \item Penetration testing regular
+    \end{itemize}
+    \item \textbf{Detectivas}:
+    \begin{itemize}
+        \item Monitoramento de acessos suspeitos
+        \item Logs detalhados de todas as operacoes
+        \item Alertas automaticos de tentativas de invasao
+    \end{itemize}
+    \item \textbf{Corretivas}:
+    \begin{itemize}
+        \item Plano de resposta a incidentes
+        \item Backup criptografado e testado
+        \item Protocolo de comunicacao com usuarios
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{RT002 - Performance e Escalabilidade}
+
+\paragraph{Descricao}
+Sistema pode nao suportar o crescimento de usuarios ou apresentar lentidao.
+
+\paragraph{Probabilidade}: Media (40\%)
+\paragraph{Impacto}: Medio
+
+\paragraph{Estrategias de Mitigacao}
+\begin{itemize}
+    \item Arquitetura escalavel desde o inicio
+    \item Cache Redis para operacoes frequentes
+    \item CDN para assets estaticos
+    \item Monitoramento de performance em tempo real
+    \item Testes de carga automatizados
+    \item Auto-scaling na infraestrutura cloud
+\end{itemize}
+
+\subsubsection{RT003 - Complexidade do Desenvolvimento}
+
+\paragraph{Descricao}
+Subestimacao da complexidade pode levar a atrasos significativos.
+
+\paragraph{Probabilidade}: Alta (60\%)
+\paragraph{Impacto}: Medio
+
+\paragraph{Estrategias de Mitigacao}
+\begin{itemize}
+    \item Desenvolvimento iterativo com entregas frequentes
+    \item Prototipagem antes da implementacao
+    \item Code review obrigatorio
+    \item Documentacao tecnica detalhada
+    \item Buffer de 20\% no cronograma
+    \item Equipe com experiencia nas tecnologias escolhidas
+\end{itemize}
+
+\subsection{Riscos de Negocio}
+
+\subsubsection{RN001 - Aceitacao do Usuario}
+
+\paragraph{Descricao}
+Usuarios podem nao adotar a metodologia proposta ou achar a interface complexa.
+
+\paragraph{Probabilidade}: Media (35\%)
+\paragraph{Impacto}: Alto
+
+\paragraph{Estrategias de Mitigacao}
+\begin{itemize}
+    \item Pesquisa de mercado detalhada
+    \item Testes de usabilidade com usuarios reais
+    \item MVP com funcionalidades essenciais
+    \item Onboarding guiado e intuitivo
+    \item Feedback continuo dos usuarios
+    \item Tutorial interativo e help context-sensitive
+\end{itemize}
+
+\subsubsection{RN002 - Concorrencia}
+
+\paragraph{Descricao}
+Entrada de competidores com recursos superiores ou lancamento antes do previsto.
+
+\paragraph{Probabilidade}: Alta (70\%)
+\paragraph{Impacto}: Medio
+
+\paragraph{Estrategias de Mitigacao}
+\begin{itemize}
+    \item Foco na diferenciacao da metodologia unica
+    \item Lancamento rapido do MVP
+    \item Construcao de comunidade de usuarios
+    \item Melhoria continua baseada em feedback
+    \item Parcerias estrategicas
+    \item Marketing focado nos beneficios unicos
+\end{itemize}
+
+\subsection{Riscos Regulatorios}
+
+\subsubsection{RR001 - LGPD e Protecao de Dados}
+
+\paragraph{Descricao}
+Mudancas na legislacao de protecao de dados podem exigir alteracoes no sistema.
+
+\paragraph{Probabilidade}: Baixa (20\%)
+\paragraph{Impacto}: Alto
+
+\paragraph{Estrategias de Mitigacao}
+\begin{itemize}
+    \item Conformidade total com LGPD desde o inicio
+    \item Consulta juridica especializada
+    \item Termo de consentimento claro e especifico
+    \item Funcionalidades de exclusao de dados
+    \item Portabilidade de dados do usuario
+    \item Acompanhamento continuo de mudancas legais
+\end{itemize}
+
+\subsubsection{RR002 - Regulamentacao de Fintechs}
+
+\paragraph{Descricao}
+Novas regulamentacoes podem afetar aplicacoes financeiras.
+
+\paragraph{Probabilidade}: Baixa (15\%)
+\paragraph{Impacto}: Medio
+
+\paragraph{Estrategias de Mitigacao}
+\begin{itemize}
+    \item Foco em ferramenta de organizacao, nao transacoes
+    \item Nao custodia de recursos financeiros
+    \item Relacionamento com associacoes do setor
+    \item Monitoramento de mudancas regulatorias
+\end{itemize}
+
+\subsection{Riscos Operacionais}
+
+\subsubsection{RO001 - Disponibilidade da Equipe}
+
+\paragraph{Descricao}
+Membros da equipe podem nao estar disponiveis durante periodos criticos.
+
+\paragraph{Probabilidade}: Media (30\%)
+\paragraph{Impacto}: Medio
+
+\paragraph{Estrategias de Mitigacao}
+\begin{itemize}
+    \item Documentacao tecnica completa
+    \item Knowledge sharing regular entre a equipe
+    \item Redundancia nas competencias criticas
+    \item Cronograma flexivel com buffers
+    \item Backup de fornecedores/freelancers
+\end{itemize}
+
+\subsubsection{RO002 - Falhas de Infraestrutura}
+
+\paragraph{Descricao}
+Problemas com provedores de cloud ou servicos terceiros.
+
+\paragraph{Probabilidade}: Baixa (15\%)
+\paragraph{Impacto}: Alto
+
+\paragraph{Estrategias de Mitigacao}
+\begin{itemize}
+    \item Multiplas zonas de disponibilidade
+    \item Backup automatico e testado regularmente
+    \item SLA definido com provedores
+    \item Monitoramento 24/7
+    \item Plano de disaster recovery
+    \item Redundancia em servicos criticos
+\end{itemize}
+
+\subsection{Plano de Contingencia}
+
+\subsubsection{Cenario 1: Atraso Significativo (>4 semanas)}
+\begin{itemize}
+    \item Reducao de escopo priorizando features essenciais
+    \item Aumento temporario da equipe
+    \item Extensao do cronograma com comunicacao transparente
+    \item Lancamento em fases (soft launch)
+\end{itemize}
+
+\subsubsection{Cenario 2: Problemas Graves de Seguranca}
+\begin{itemize}
+    \item Suspensao imediata do servico se necessario
+    \item Comunicacao transparente com usuarios
+    \item Auditoria externa de seguranca
+    \item Implementacao de correcoes antes do retorno
+\end{itemize}
+
+\subsubsection{Cenario 3: Rejeicao Nas App Stores}
+\begin{itemize}
+    \item Analise detalhada dos motivos da rejeicao
+    \item Correcoes prioritarias
+    \item Foco na versao web enquanto resolve o mobile
+    \item Submissao em lotes menores se necessario
+\end{itemize}
+
+\subsection{Monitoramento de Riscos}
+
+\subsubsection{Indicadores de Alerta}
+\begin{itemize}
+    \item Atraso >1 semana em qualquer sprint
+    \item Taxa de bugs criticos >5\% dos testes
+    \item Performance >3 segundos para operacoes basicas
+    \item Feedback negativo >30\% nos testes de usuario
+    \item Violacao de SLA de infraestrutura
+\end{itemize}
+
+\subsubsection{Revisoes Regulares}
+\begin{itemize}
+    \item Avaliacao semanal de riscos em sprint reviews
+    \item Revisao mensal de riscos estrategicos
+    \item Atualizacao trimestral da matriz de riscos
+    \item Post-mortem apos qualquer incidente
+\end{itemize}
