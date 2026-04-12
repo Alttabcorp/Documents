@@ -2,11 +2,11 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/docker-existing-dockerfile
 {
 	"name": "AlttabCorp Documents",
-	"build": {
-		"context": "..",
-		"dockerfile": "../Dockerfile"
-	},
-	"workspaceMount": "source=${localWorkspaceFolder},target=/home/document_project/app,type=bind,consistency=cached",
+	       "dockerComposeFile": [
+		       "../docker-compose.yml"
+	       ],
+	       "service": "latex",
+	"workspaceMount": "source=${localWorkspaceFolder}/src,target=/home/document_project/app,type=bind,consistency=cached",
 	"workspaceFolder": "/home/document_project/app",
 	"features": {
 		"ghcr.io/devcontainers/features/common-utils:2": {},

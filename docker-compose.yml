@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: latex_project
+    container_name: latex
     volumes:
       - ./src:/home/document_project/app
     working_dir: /home/document_project/app
