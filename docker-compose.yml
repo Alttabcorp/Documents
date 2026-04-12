@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  latex:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: latex_project
+    volumes:
+      - ./src:/home/document_project/app
+    working_dir: /home/document_project/app
+    user: texlive
+    tty: true
