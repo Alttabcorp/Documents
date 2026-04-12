@@ -37,8 +37,8 @@ Documents/
 ├── templates/        # Templates de documentação
 │   ├── latex/       # Templates LaTeX
 │   └── markdown/    # Templates Markdown
-├── docs/            # Documentação geral
-└── projects/        # Documentos específicos de projetos
+├── src/             # Suas documentações e projetos em LaTeX/Markdown
+└── docker-compose.yml # Orquestração do ambiente Docker
 ```
 
 ## 🚀 Como Usar
@@ -86,9 +86,9 @@ Documents/
 
 ### Uso do Template
 
-1. Copie o template apropriado da pasta `templates/`
-2. Siga as instruções do template específico
-3. Customize conforme necessário
+1. Copie o template apropriado da pasta `templates/` para a pasta `src/`
+2. Renomeie e edite conforme seu projeto
+3. Gere o PDF ou outro formato desejado usando o ambiente Docker
 4. Commit e push das alterações
 
 ## 📝 Guia de Contribuição
@@ -111,10 +111,11 @@ Documents/
 ## 🛠️ Ferramentas Recomendadas
 
 - VSCode com extensões:
-  - LaTeX Workshop
-  - Docker
-  - Markdown All in One
-  - Git Lens
+   - LaTeX Workshop
+   - Docker
+   - Markdown All in One
+   - GitLens
+   - Remote - Containers
 
 ## 📄 Licença
 
