@@ -6,126 +6,141 @@
 
 [![License](https://img.shields.io/github/license/Alttabcorp/Documents)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue)](Dockerfile)
-[![Template](https://img.shields.io/badge/Template-Ready-green)](templates/)
+[![code-server](https://img.shields.io/badge/code--server-VS%20Code%20no%20browser-purple)](https://github.com/coder/code-server)
 
 </div>
 
 ## 🎯 Sobre este Repositório
 
-Este repositório serve como um template de documentação para projetos da AlttabCorp. Ele pode ser utilizado de duas maneiras:
+Template de documentação da AlttabCorp com ambiente self-hosted completo:
+**VS Code no browser + LaTeX + IA + Git**, tudo em Docker.
 
-1. **Como Submódulo**: Incorporado em outros projetos para manter a documentação
-2. **Como Repositório Central**: Para gerenciar a documentação de todos os projetos da empresa
+```
+Servidor local
+└── Docker
+    └── code-server (VS Code no browser)
+        ├── LaTeX Workshop (compila + preview PDF)
+        ├── Continue.dev (IA — Copilot local/API)
+        └── Git integrado → GitHub
+```
 
-Utilizamos Docker com Texlive para garantir consistência e qualidade na geração de documentação.
+Acesse `http://ip-do-servidor:8080` de qualquer dispositivo na rede.
 
-## 🌟 Características
+---
 
-- **Template Padronizado**: Estrutura base para todos os projetos da empresa
-- **Suporte Multi-formato**: LaTeX, Markdown e outros formatos de documentação
-- **Ambiente Dockerizado**: Garantia de consistência na geração de documentos
-- **Integração Contínua**: Pipelines automatizadas para validação de documentação
-- **Versionamento**: Controle de versão eficiente por projeto
-- **Flexibilidade**: Pode ser usado como submódulo ou repositório central
+## 🚀 Setup inicial
 
-## 🗂️ Estrutura do Repositório
+### 1. Clone o repositório
+
+```bash
+git clone https://github.com/Alttabcorp/Documents.git
+cd Documents
+```
+
+### 2. Configure as variáveis de ambiente
+
+```bash
+cp .env.example .env
+```
+
+Edite o `.env` com sua senha e dados do Git:
+
+```env
+CODE_SERVER_PASSWORD=minha_senha_segura
+GIT_NAME=Seu Nome
+GIT_EMAIL=seu@email.com
+```
+
+### 3. (Opcional) Configure SSH para push no GitHub
+
+Descomente a linha do volume SSH no `docker-compose.yml`:
+
+```yaml
+- ~/.ssh:/home/coder/.ssh:ro
+```
+
+Isso monta sua chave SSH local dentro do container, permitindo `git push` sem senha.
+
+### 4. Suba o container
+
+```bash
+docker compose up -d --build
+```
+
+A primeira build demora alguns minutos (TeXLive + code-server + extensões).
+
+### 5. Acesse
+
+Abra no browser: `http://localhost:8080` (ou o IP do servidor)
+
+---
+
+## 📁 Estrutura
 
 ```
 Documents/
-├── .github/          # Configurações do GitHub e workflows
-├── .devcontainer/    # Configurações para desenvolvimento
-├── templates/        # Templates de documentação
-│   ├── latex/       # Templates LaTeX
-│   └── markdown/    # Templates Markdown
-├── src/             # Suas documentações e projetos em LaTeX/Markdown
-└── docker-compose.yml # Orquestração do ambiente Docker
+├── src/              # Seus arquivos .tex (montado no workspace do VS Code)
+├── templates/
+│   ├── latex/        # Templates LaTeX
+│   └── markdown/     # Templates Markdown
+├── Dockerfile        # texlive/texlive + code-server + extensões
+├── docker-compose.yml
+├── .env.example      # Modelo de variáveis de ambiente
+└── .gitignore
 ```
 
-## 🚀 Como Usar
+---
 
-### Opção 1: Como Submódulo
+## ✍️ Fluxo de trabalho diário
 
-1. **Adicione como Submódulo**:
+1. Acesse `http://ip-do-servidor:8080` no browser
+2. Edite seu `.tex` — LaTeX Workshop compila automaticamente e mostra o PDF ao lado
+3. Use o Continue.dev (ícone na barra lateral) para assistência de IA
+4. Commit e push pelo terminal integrado:
    ```bash
-   git submodule add https://github.com/Alttabcorp/Documents.git docs
+   git add .
+   git commit -m "atualiza artigo"
+   git push
    ```
 
-2. **Inicialize e Atualize**:
-   ```bash
-   git submodule update --init --recursive
-   ```
+---
 
-3. **Crie os Links Simbólicos Necessários**:
-   ```bash
-   # Crie links simbólicos para os arquivos de configuração necessários
-   ln -s docs/.devcontainer .devcontainer
-   ln -s docs/Dockerfile Dockerfile
-   ```
+## 🔧 Comandos úteis
 
-4. **Configure o Ambiente**:
-   - Abra o projeto no VSCode
-   - Instale a extensão "Remote - Containers" se ainda não tiver
-   - Quando solicitado, clique em "Reopen in Container" ou use o comando "Remote-Containers: Reopen in Container"
-   - O VSCode irá automaticamente configurar o ambiente usando o devcontainer
+```bash
+# Ver logs do container
+docker compose logs -f
 
-   > **Nota**: Os links simbólicos são necessários para que o ambiente de desenvolvimento e o Docker funcionem corretamente no projeto principal.
+# Parar
+docker compose down
 
-### Opção 2: Como Repositório Central
+# Rebuild após mudanças no Dockerfile
+docker compose up -d --build
 
-1. **Clone o Repositório**:
-   ```bash
-   git clone https://github.com/Alttabcorp/Documents.git
-   cd Documents
-   ```
+# Entrar no container via terminal
+docker exec -it latex-codeserver bash
+```
 
-2. **Configure o Ambiente**:
-   - Abra o projeto no VSCode
-   - Instale a extensão "Remote - Containers" se ainda não tiver
-   - Quando solicitado, clique em "Reopen in Container" ou use o comando "Remote-Containers: Reopen in Container"
-   - O VSCode irá automaticamente configurar o ambiente usando o devcontainer
+---
 
-### Uso do Template
+## 🛠️ Extensões pré-instaladas
 
-1. Copie o template apropriado da pasta `templates/` para a pasta `src/`
-2. Renomeie e edite conforme seu projeto
-3. Gere o PDF ou outro formato desejado usando o ambiente Docker
-4. Commit e push das alterações
+| Extensão | Função |
+|---|---|
+| **LaTeX Workshop** | Compilação, preview PDF, syntax highlight |
+| **Continue.dev** | IA integrada (suporta Ollama, OpenAI, Anthropic, etc.) |
 
-## 📝 Guia de Contribuição
+Para instalar mais extensões: dentro do code-server use `Ctrl+Shift+X` normalmente, ou adicione ao `Dockerfile`:
 
-1. **Fork** do repositório
-2. Crie uma **branch** para sua feature (`git checkout -b feature/nome-da-feature`)
-3. Commit suas alterações (`git commit -m 'Adiciona nova feature'`)
-4. Push para a branch (`git push origin feature/nome-da-feature`)
-5. Abra um **Pull Request**
+```dockerfile
+RUN code-server --install-extension <publisher.extension>
+```
 
-## 🔍 Boas Práticas
-
-- Mantenha a documentação atualizada
-- Siga os padrões de formatação estabelecidos
-- Use nomes descritivos para arquivos e pastas
-- Inclua exemplos quando possível
-- Mantenha a estrutura do template
-- Ao usar como submódulo, mantenha-o atualizado regularmente
-
-## 🛠️ Ferramentas Recomendadas
-
-- VSCode com extensões:
-   - LaTeX Workshop
-   - Docker
-   - Markdown All in One
-   - GitLens
-   - Remote - Containers
+---
 
 ## 📄 Licença
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
-
-## 📞 Contato e Suporte
-
-- Email: alttabcorp@gmail.com
-- GitHub: [@AlttabCorp](https://github.com/Alttabcorp)
-- Website: [alttabcorp.com.br](https://alttabcorp.github.io/Alttab_web/)
+MIT — veja [LICENSE](LICENSE).
 
 ---
 
@@ -133,6 +148,6 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 
 **Made with ❤️ by AlttabCorp**
 
-[Contribua com o Projeto](https://github.com/sponsors/bodescorp)
+[@AlttabCorp](https://github.com/Alttabcorp)
 
 </div>

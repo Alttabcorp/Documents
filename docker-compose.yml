@@ -1,12 +1,28 @@
 version: '3.8'
+
 services:
   latex:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: latex
+    container_name: latex-codeserver
+    ports:
+      - "8888:8080"   # code-server (browser)
+      - "2222:22"     # SSH direto no container (Cursor Remote SSH)
     volumes:
-      - ./src:/home/document_project/app
-    working_dir: /home/document_project/app
-    user: texlive
-    tty: true
+      # Repositório Documents completo como workspace
+      - .:/home/coder/workspace
+      # Persistência de extensões e configurações do code-server
+      - codeserver-data:/home/coder/.local
+      # Chave SSH para push no GitHub (opcional — veja README)
+      # - ~/.ssh:/home/coder/.ssh:ro
+    environment:
+      - PASSWORD=${CODE_SERVER_PASSWORD:-changeme}
+      - GIT_AUTHOR_NAME=${GIT_NAME:-Seu Nome}
+      - GIT_AUTHOR_EMAIL=${GIT_EMAIL:-email@exemplo.com}
+      - GIT_COMMITTER_NAME=${GIT_NAME:-Seu Nome}
+      - GIT_COMMITTER_EMAIL=${GIT_EMAIL:-email@exemplo.com}
+    restart: unless-stopped
+
+volumes:
+  codeserver-data:

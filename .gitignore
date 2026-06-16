@@ -43,4 +43,7 @@ yarn-error.log
 
 # OS
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Variáveis de ambiente (senha, credenciais)
+.env

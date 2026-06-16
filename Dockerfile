@@ -1,26 +1,36 @@
-# Usando uma imagem oficial do LaTeX
+# Base oficial com TeXLive completo (inclui suporte a português, fontes, etc.)
 FROM texlive/texlive:latest
 
-# Instalar pacotes essenciais
+# Dependências do sistema
 RUN apt-get update && apt-get install -y \
-    texlive-latex-extra \
-    texlive-fonts-recommended \
-    texlive-lang-portuguese \
     sudo \
-    && rm -rf /var/lib/apt/lists/*
+    curl \
+    git \
+    openssh-server \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/run/sshd
 
-# Criar diretório e definir workdir
-WORKDIR /home/document_project/app
+# Instala code-server (VS Code no browser)
+RUN curl -fsSL https://code-server.dev/install.sh | sh
 
-# Configurar sudo para o usuário texlive
-RUN echo "texlive ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/texlive
+# Cria coder com UID 1000 (igual ao garcon no host) — evita conflito de ownership nos volumes
+RUN (getent passwd 1000 | cut -d: -f1 | xargs -I{} userdel -r {} 2>/dev/null || true) \
+    && useradd -u 1000 -m -s /bin/bash coder \
+    && echo "coder ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/coder \
+    && chown -R coder:coder /home/coder
 
-# Ajustar permissões do diretório do projeto
-RUN chown -R texlive:texlive /home/document_project
+# Copia e permissiona o entrypoint ainda como root
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Mudar para o usuário texlive
-USER texlive
+USER coder
 
-CMD ["bash"]
-#pdflatex main.tex
+# Pré-instala extensões: LaTeX Workshop + Continue.dev (IA)
+RUN code-server --install-extension James-Yu.latex-workshop \
+    && code-server --install-extension Continue.continue
 
+WORKDIR /home/coder/workspace
+
+EXPOSE 8080 22
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
